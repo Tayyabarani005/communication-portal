@@ -15,8 +15,6 @@ return new class extends Migration
             $table->string('role', 50)->default('member');
             $table->timestamp('joined_at')->useCurrent();
             $table->timestamps();
-
-            $table->primary('member_id');
             $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
             $table->foreign('workspace_id')->references('workspace_id')->on('workspace')->onDelete('cascade');
         });

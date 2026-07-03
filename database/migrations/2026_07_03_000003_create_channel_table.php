@@ -14,8 +14,6 @@ return new class extends Migration
             $table->string('channel_name', 100);
             $table->boolean('is_private')->default(false);
             $table->timestamps();
-
-            $table->primary('channel_id');
             $table->foreign('workspace_id')->references('workspace_id')->on('workspace')->onDelete('cascade');
         });
     }

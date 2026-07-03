@@ -17,8 +17,6 @@ return new class extends Migration
             $table->string('msg_type', 50)->default('text');
             $table->timestamp('sent_at')->useCurrent();
             $table->timestamps();
-
-            $table->primary('dm_message_id');
             $table->foreign('conversation_id')->references('conversation_id')->on('dm_conversation')->onDelete('cascade');
             $table->foreign('sender_id')->references('user_id')->on('users')->onDelete('cascade');
             $table->foreign('parent_id')->references('dm_message_id')->on('direct_message')->onDelete('cascade');

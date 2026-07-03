@@ -14,8 +14,6 @@ return new class extends Migration
             $table->string('pinnable_type', 255);
             $table->integer('pinned_by');
             $table->timestamps();
-
-            $table->primary('pin_id');
             $table->foreign('pinned_by')->references('user_id')->on('users')->onDelete('cascade');
             $table->index(['pinnable_type', 'pinnable_id']);
         });

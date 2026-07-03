@@ -17,8 +17,6 @@ return new class extends Migration
             $table->bigInteger('file_size')->nullable();
             $table->string('mime_type', 100)->nullable();
             $table->timestamps();
-
-            $table->primary('file_id');
             $table->index(['attachable_type', 'attachable_id']);
         });
     }

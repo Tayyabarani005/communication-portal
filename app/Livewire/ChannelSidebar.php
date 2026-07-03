@@ -15,6 +15,7 @@ use Livewire\Component;
 class ChannelSidebar extends Component
 {
     public Workspace $workspace;
+    public ?int $activeChannelId = null;
 
     /** @var array<int, array<string, mixed>> */
     public array $channels = [];
@@ -22,6 +23,7 @@ class ChannelSidebar extends Component
     public function mount(Workspace $workspace): void
     {
         $this->workspace = $workspace;
+        $this->activeChannelId = (int) request()->route('channel')?->channel_id;
         $this->loadChannels();
     }
 

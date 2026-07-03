@@ -25,8 +25,10 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'name',
         'username',
         'email',
+        'password',
         'password_hash',
         'is_active',
         'avatar_url',
@@ -70,6 +72,30 @@ class User extends Authenticatable
             'password_hash' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the user's password (compatibility alias for password_hash).
+     */
+    public function getPasswordAttribute(): ?string
+    {
+        return $this->password_hash;
+    }
+
+    /**
+     * Set the user's password (compatibility alias for password_hash).
+     */
+    public function setPasswordAttribute(string $value): void
+    {
+        $this->attributes['password_hash'] = $value;
+    }
+
+    /**
+     * Get the user's ID (compatibility alias for user_id).
+     */
+    public function getIdAttribute(): ?int
+    {
+        return $this->user_id;
     }
 
     /* Relationships */

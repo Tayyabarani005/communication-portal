@@ -13,8 +13,6 @@ return new class extends Migration
             $table->integer('conversation_id');
             $table->integer('user_id');
             $table->timestamps();
-
-            $table->primary('dm_participant_id');
             $table->foreign('conversation_id')->references('conversation_id')->on('dm_conversation')->onDelete('cascade');
             $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
         });

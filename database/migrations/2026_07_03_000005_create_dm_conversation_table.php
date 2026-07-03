@@ -11,8 +11,6 @@ return new class extends Migration
         Schema::create('dm_conversation', function (Blueprint $table) {
             $table->integer('conversation_id')->autoIncrement();
             $table->timestamps();
-
-            $table->primary('conversation_id');
         });
     }
 

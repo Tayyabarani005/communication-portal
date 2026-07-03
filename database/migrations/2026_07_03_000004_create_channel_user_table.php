@@ -14,8 +14,6 @@ return new class extends Migration
             $table->integer('user_id');
             $table->timestamp('joined_at')->useCurrent();
             $table->timestamps();
-
-            $table->primary('channel_user_id');
             $table->foreign('channel_id')->references('channel_id')->on('channel')->onDelete('cascade');
             $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
         });

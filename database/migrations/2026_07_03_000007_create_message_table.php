@@ -17,8 +17,6 @@ return new class extends Migration
             $table->timestamp('sent_at')->useCurrent();
             $table->string('msg_type', 50)->default('text');
             $table->timestamps();
-
-            $table->primary('message_id');
             $table->foreign('channel_id')->references('channel_id')->on('channel')->onDelete('cascade');
             $table->foreign('sender_id')->references('user_id')->on('users')->onDelete('cascade');
             $table->foreign('parent_id')->references('message_id')->on('message')->onDelete('cascade');

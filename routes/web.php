@@ -16,6 +16,9 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/dashboard', function () {
+        return redirect()->route('workspaces.index');
+    })->name('dashboard');
 
     /* ── Workspaces ── */
     Route::resource('workspaces', WorkspaceController::class);

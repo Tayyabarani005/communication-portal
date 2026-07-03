@@ -18,8 +18,6 @@ return new class extends Migration
             $table->string('status', 50)->default('pending');
             $table->date('due_date')->nullable();
             $table->timestamps();
-
-            $table->primary('task_id');
             $table->foreign('channel_id')->references('channel_id')->on('channel')->onDelete('cascade');
             $table->foreign('created_by')->references('user_id')->on('users')->onDelete('cascade');
             $table->foreign('assigned_to')->references('user_id')->on('users')->onDelete('set null');

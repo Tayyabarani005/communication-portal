@@ -15,9 +15,11 @@ class DmSidebar extends Component
 {
     /** @var array<int, array<string, mixed>> */
     public array $conversations = [];
+    public ?int $activeConversationId = null;
 
     public function mount(): void
     {
+        $this->activeConversationId = (int) request()->route('conversation')?->conversation_id;
         $this->loadConversations();
     }
 

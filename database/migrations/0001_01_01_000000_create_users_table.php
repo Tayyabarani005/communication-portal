@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->integer('user_id')->autoIncrement();
-            $table->string('username', 50);
+            $table->string('username', 50)->unique();
+            $table->string('name', 255)->nullable(); // display name, kept for compatibility
             $table->string('email', 100)->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password_hash', 255);
@@ -21,8 +22,6 @@ return new class extends Migration
             $table->string('avatar_url', 255)->nullable();
             $table->rememberToken();
             $table->timestamps();
-            
-            $table->primary('user_id');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
