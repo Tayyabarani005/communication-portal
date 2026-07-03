@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('dm_participant', function (Blueprint $table) {
+            $table->integer('dm_participant_id')->autoIncrement();
+            $table->integer('conversation_id');
+            $table->integer('user_id');
+            $table->timestamps();
+
+            $table->primary('dm_participant_id');
+            $table->foreign('conversation_id')->references('conversation_id')->on('dm_conversation')->onDelete('cascade');
+            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('dm_participant');
+    }
+};
