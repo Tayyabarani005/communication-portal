@@ -9,18 +9,24 @@ use App\Events\UserTyping;
 use App\Models\DirectMessage;
 use App\Models\DmConversation;
 use App\Models\DmReadState;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class DirectMessageWindow extends Component
 {
+    use WithFileUploads;
+
     public DmConversation $conversation;
     public string $body = '';
     public ?int $parentId = null;
     public string $replyPreview = '';
     public bool $showTyping = false;
     public string $typingUser = '';
+    public $attachment = null;
 
     /** @var array<int, array<string, mixed>> */
     public array $messages = [];
@@ -62,7 +68,10 @@ class DirectMessageWindow extends Component
     public function send(): void
     {
         $this->authorize('view', $this->conversation);
-        $this->validate(['body' => ['required', 'string', 'max:4000']]);
+        $this->validate([
+            'body' => ['required', 'string', 'max:4000'],
+            'attachment' => ['nullable', 'file', 'max:10240'],
+        ]);
 
         $message = DirectMessage::create([
             'conversation_id' => $this->conversation->conversation_id,
@@ -73,6 +82,23 @@ class DirectMessageWindow extends Component
             'sent_at'         => now(),
         ]);
 
+        // Handle file attachment
+        if ($this->attachment) {
+            $path = $this->attachment->store("attachments/dm-{$message->dm_message_id}", 'public');
+            \App\Models\File::create([
+                'attachable_id'   => $message->dm_message_id,
+                'attachable_type' => DirectMessage::class,
+                'file_name'       => $this->attachment->getClientOriginalName(),
+                'file_path'       => $path,
+                'file_size'       => $this->attachment->getSize(),
+                'mime_type'       => $this->attachment->getMimeType(),
+            ]);
+            $this->attachment = null;
+        }
+
+        // Parse @mentions
+        $this->parseMentions($this->body, $message);
+
         $message->load('sender');
         broadcast(new DirectMessageSent($message))->toOthers();
 
@@ -82,6 +108,25 @@ class DirectMessageWindow extends Component
         $this->replyPreview = '';
         $this->markRead();
         $this->dispatch('message-sent');
+    }
+
+    private function parseMentions(string $body, DirectMessage $message): void
+    {
+        if (preg_match_all('/@(\w+)/', $body, $matches)) {
+            $usernames = array_unique($matches[1]);
+            $users = User::whereIn('username', $usernames)
+                ->where('user_id', '!=', auth()->user()->user_id)
+                ->get();
+
+            foreach ($users as $user) {
+                Notification::create([
+                    'user_id'    => $user->user_id,
+                    'sender_id'  => auth()->user()->user_id,
+                    'type'       => 'tag',
+                    'text'       => auth()->user()->username . ' mentioned you in a direct message',
+                ]);
+            }
+        }
     }
 
     public function setReply(int $messageId, string $preview): void
@@ -104,6 +149,11 @@ class DirectMessageWindow extends Component
             'dm',
             $this->conversation->conversation_id,
         ))->toOthers();
+    }
+
+    public function refreshMessages(): void
+    {
+        $this->loadMessages();
     }
 
     #[On('echo-private:dm.{conversation.conversation_id},DirectMessageSent')]

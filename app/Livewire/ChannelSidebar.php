@@ -32,7 +32,7 @@ class ChannelSidebar extends Component
         $userId = auth()->user()->user_id;
 
         $this->channels = Channel::where('workspace_id', $this->workspace->workspace_id)
-            ->whereHas('users', fn($q) => $q->where('user_id', $userId))
+            ->whereHas('users', fn($q) => $q->where('channel_user.user_id', $userId))
             ->with(['messages' => fn($q) => $q->latest('sent_at')->limit(1)])
             ->get()
             ->map(function (Channel $channel) use ($userId) {

@@ -8,6 +8,7 @@ use App\Http\Controllers\DirectMessageController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\PinnedMessageController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -16,7 +17,8 @@ Route::get('/', function () {
         : redirect()->route('login');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+// Removed 'verified' middleware — internal portal doesn't require email verification
+Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         return redirect()->route('workspaces.index');
     })->name('dashboard');
@@ -27,6 +29,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('workspaces/{workspace}')->group(function () {
         Route::post('join',   [WorkspaceController::class, 'join'])->name('workspaces.join');
         Route::post('invite', [WorkspaceController::class, 'invite'])->name('workspaces.invite');
+
+        // Join request approval routes (admin only)
+        Route::post('join-requests/{joinRequest}/approve', [WorkspaceController::class, 'approveJoin'])->name('workspaces.join-requests.approve');
+        Route::post('join-requests/{joinRequest}/reject',  [WorkspaceController::class, 'rejectJoin'])->name('workspaces.join-requests.reject');
+
         Route::get('channels/create', [ChannelController::class, 'create'])->name('workspaces.channels.create');
         Route::post('channels', [ChannelController::class, 'store'])->name('workspaces.channels.store');
         Route::post('channels/{channel}/join', [ChannelController::class, 'join'])->name('channels.join');
@@ -65,6 +72,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     /* ── Users (search) ── */
     Route::get('/users/search', [UserController::class, 'search'])->name('users.search');
+
+    /* ── Notifications ── */
+    Route::get('/notifications/count', [NotificationController::class, 'count'])->name('notifications.count');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/mark-seen', [NotificationController::class, 'markAllSeen'])->name('notifications.markSeen');
 });
 
 require __DIR__.'/auth.php';

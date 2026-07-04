@@ -1,11 +1,22 @@
 {{-- DM Window Livewire Component --}}
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full" wire:poll.5s="refreshMessages">
     {{-- Messages list --}}
     <div id="dm-messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
          style="background: var(--color-bg-main);"
-         x-data="{}"
-         x-on:dm-scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight"
+         x-data="{ playSound() {
+             try {
+                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                 const osc = ctx.createOscillator();
+                 const gain = ctx.createGain();
+                 osc.connect(gain); gain.connect(ctx.destination);
+                 osc.frequency.value = 880; osc.type = 'sine';
+                 gain.gain.setValueAtTime(0.08, ctx.currentTime);
+                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                 osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+             } catch(e) {}
+         }}"
+         x-on:dm-scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight; playSound()"
          x-init="$el.scrollTop = $el.scrollHeight">
 
         @forelse($messages as $msg)
@@ -28,8 +39,29 @@
                      style="{{ $isMine
                         ? 'background: var(--color-accent-600); color: white;'
                         : 'background: white; color: var(--color-primary-800); border: 1px solid var(--color-border);' }}">
-                    {{ $msg['msg_body'] }}
+                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(255,255,255,0.2); padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
                 </div>
+
+                {{-- Attached files --}}
+                @if(!empty($msg['files']) && count($msg['files']) > 0)
+                <div class="mt-1">
+                    @foreach($msg['files'] as $file)
+                    <a href="{{ route('files.download', $file['file_id']) }}" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs border transition-colors hover:bg-gray-50" style="border-color: var(--color-border); color: var(--color-accent-600);">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+                        {{ $file['file_name'] }}
+                    </a>
+                    @endforeach
+                </div>
+                @endif
+            </div>
+            {{-- Reply action on hover --}}
+            <div class="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                <button wire:click="setReply({{ $msg['dm_message_id'] ?? $msg['id'] ?? 0 }}, '{{ addslashes(substr($msg['msg_body'], 0, 40)) }}')"
+                        class="p-1 rounded hover:bg-gray-200 transition-colors" title="Reply" style="color: var(--color-primary-400);">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                    </svg>
+                </button>
             </div>
         </div>
         @empty
@@ -46,10 +78,16 @@
 
     </div>
 
-    {{-- Typing indicator --}}
+    {{-- Typing indicator with animated dots --}}
     @if($showTyping)
-    <div class="px-4 py-1 text-xs" style="color: var(--color-primary-500);">
-        <span class="italic">{{ $typingUser }} is typing…</span>
+    <div class="px-4 py-1.5 text-xs flex items-center gap-1" style="color: var(--color-primary-500);">
+        <span class="font-medium">{{ $typingUser }}</span>
+        <span>is typing</span>
+        <span class="flex gap-0.5 ml-0.5">
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0s;"></span>
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0.15s;"></span>
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0.3s;"></span>
+        </span>
         <span x-data x-init="setTimeout(() => $wire.hideTyping(), 3000)"></span>
     </div>
     @endif
@@ -64,18 +102,47 @@
     @endif
 
     {{-- Message composer --}}
-    <div class="p-4 border-t flex-shrink-0" style="background: white; border-color: var(--color-border);">
-        <div class="flex items-end gap-3 rounded-xl border px-4 py-3" style="border-color: var(--color-border);">
+    <div class="p-4 border-t flex-shrink-0" style="background: white; border-color: var(--color-border);"
+         x-data="{ showEmoji: false, emojis: ['😀','😂','😍','👍','👎','🎉','🔥','❤️','💯','😢','😮','🤔','👀','🚀','✅','❌','⭐','💡','📎','🎯'] }">
+
+        {{-- File attachment preview --}}
+        @if($attachment)
+        <div class="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs" style="border-color: var(--color-border); background: var(--color-primary-50);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: var(--color-accent-600);"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+            <span style="color: var(--color-primary-700);">{{ $attachment->getClientOriginalName() }}</span>
+            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">✕</button>
+        </div>
+        @endif
+
+        <div class="flex items-end gap-2 rounded-xl border px-3 py-2" style="border-color: var(--color-border);">
+            {{-- File upload button --}}
+            <label class="cursor-pointer p-1.5 rounded-lg transition-colors hover:bg-gray-100 flex-shrink-0" title="Attach file" style="color: var(--color-primary-400);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                </svg>
+                <input type="file" wire:model="attachment" class="hidden">
+            </label>
+
+            {{-- Emoji picker button --}}
+            <button type="button" @click="showEmoji = !showEmoji" class="p-1.5 rounded-lg transition-colors hover:bg-gray-100 flex-shrink-0" title="Emoji" style="color: var(--color-primary-400);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                </svg>
+            </button>
+
+            {{-- Textarea --}}
             <textarea
                 wire:model="body"
                 wire:keydown.enter.prevent="send"
                 wire:keydown.debounce.500ms="broadcastTyping"
-                placeholder="Message…"
+                placeholder="Message…  •  Use @username to mention"
                 rows="1"
                 class="flex-1 resize-none outline-none text-sm bg-transparent"
                 style="color: var(--color-primary-900);"
                 id="dm-composer-{{ $conversation->conversation_id }}"
             ></textarea>
+
+            {{-- Send button --}}
             <button wire:click="send"
                     class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
                     style="background: var(--color-accent-600);">
@@ -84,6 +151,19 @@
                 </svg>
             </button>
         </div>
+
+        {{-- Emoji grid dropdown --}}
+        <div x-show="showEmoji" @click.outside="showEmoji = false" x-transition
+             class="absolute bottom-20 left-4 z-50 bg-white border rounded-xl shadow-lg p-3 grid grid-cols-10 gap-1"
+             style="border-color: var(--color-border);">
+            <template x-for="emoji in emojis">
+                <button type="button"
+                        class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                        @click="$wire.set('body', $wire.get('body') + emoji); showEmoji = false"
+                        x-text="emoji"></button>
+            </template>
+        </div>
+
         @error('body') <p class="text-xs mt-1" style="color: #dc2626;">{{ $message }}</p> @enderror
     </div>
 </div>

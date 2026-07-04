@@ -9,18 +9,25 @@ use App\Events\UserTyping;
 use App\Models\Channel;
 use App\Models\ChannelReadState;
 use App\Models\Message;
+use App\Models\Notification;
+use App\Models\PinnedMessage;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class ChatWindow extends Component
 {
+    use WithFileUploads;
+
     public Channel $channel;
     public string $body = '';
     public ?int $parentId = null;
     public string $replyPreview = '';
     public bool $showTyping = false;
     public string $typingUser = '';
+    public $attachment = null; // file upload
 
     /** @var array<int, array<string, mixed>> */
     public array $messages = [];
@@ -65,7 +72,10 @@ class ChatWindow extends Component
     {
         $this->authorize('sendMessage', $this->channel);
 
-        $this->validate(['body' => ['required', 'string', 'max:4000']]);
+        $this->validate([
+            'body' => ['required', 'string', 'max:4000'],
+            'attachment' => ['nullable', 'file', 'max:10240'],
+        ]);
 
         $message = Message::create([
             'channel_id' => $this->channel->channel_id,
@@ -75,6 +85,23 @@ class ChatWindow extends Component
             'msg_type'   => 'text',
             'sent_at'    => now(),
         ]);
+
+        // Handle file attachment
+        if ($this->attachment) {
+            $path = $this->attachment->store("attachments/{$message->message_id}", 'public');
+            \App\Models\File::create([
+                'attachable_id'   => $message->message_id,
+                'attachable_type' => Message::class,
+                'file_name'       => $this->attachment->getClientOriginalName(),
+                'file_path'       => $path,
+                'file_size'       => $this->attachment->getSize(),
+                'mime_type'       => $this->attachment->getMimeType(),
+            ]);
+            $this->attachment = null;
+        }
+
+        // Parse @mentions and create notifications
+        $this->parseMentions($this->body, $message);
 
         $message->load('sender');
 
@@ -87,6 +114,49 @@ class ChatWindow extends Component
 
         $this->markRead();
         $this->dispatch('message-sent');
+    }
+
+    /**
+     * Parse @username mentions from message body and create notifications.
+     */
+    private function parseMentions(string $body, Message $message): void
+    {
+        if (preg_match_all('/@(\w+)/', $body, $matches)) {
+            $usernames = array_unique($matches[1]);
+            $users = User::whereIn('username', $usernames)
+                ->where('user_id', '!=', auth()->user()->user_id)
+                ->get();
+
+            foreach ($users as $user) {
+                Notification::create([
+                    'user_id'      => $user->user_id,
+                    'sender_id'    => auth()->user()->user_id,
+                    'type'         => 'tag',
+                    'channel_id'   => $this->channel->channel_id,
+                    'message_id'   => $message->message_id,
+                    'text'         => auth()->user()->username . ' mentioned you in #' . $this->channel->channel_name,
+                ]);
+            }
+        }
+    }
+
+    public function pinMessage(int $messageId): void
+    {
+        $this->authorize('sendMessage', $this->channel);
+
+        $exists = PinnedMessage::where('pinnable_id', $messageId)
+            ->where('pinnable_type', Message::class)
+            ->exists();
+
+        if (!$exists) {
+            PinnedMessage::create([
+                'pinnable_id'   => $messageId,
+                'pinnable_type' => Message::class,
+                'pinned_by'     => auth()->user()->user_id,
+            ]);
+        }
+
+        $this->loadMessages();
     }
 
     public function setReply(int $messageId, string $preview): void
@@ -109,6 +179,14 @@ class ChatWindow extends Component
             'channel',
             $this->channel->channel_id,
         ))->toOthers();
+    }
+
+    /**
+     * Refresh messages (called by wire:poll).
+     */
+    public function refreshMessages(): void
+    {
+        $this->loadMessages();
     }
 
     #[On('echo-private:channel.{channel.channel_id},MessageSent')]

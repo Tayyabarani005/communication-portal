@@ -32,26 +32,24 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name'     => ['sometimes', 'nullable', 'string', 'max:255'],
-            'username' => ['sometimes', 'nullable', 'string', 'max:50', 'alpha_dash', 'unique:'.User::class],
-            'email'    => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'username' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:' . User::class],
+            'email'    => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // Derive a username from the name field when username isn't provided (Breeze test compatibility)
-        $username = $request->username
-            ?? \Illuminate\Support\Str::slug($request->name ?? 'user') . rand(100, 999);
-
         $user = User::create([
-            'name'          => $request->name ?? $username,
-            'username'      => $username,
+            'name'          => $request->name ?? $request->username,
+            'username'      => $request->username,
             'email'         => $request->email,
             'password_hash' => Hash::make($request->password),
+            // Auto-verify since this is an internal portal (no email verification needed)
+            'email_verified_at' => now(),
         ]);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect()->route('workspaces.index');
     }
 }

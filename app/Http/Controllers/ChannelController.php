@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Channel;
 use App\Models\ChannelUser;
 use App\Models\Workspace;
+use App\Models\WorkspaceMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,7 +18,20 @@ class ChannelController extends Controller
     {
         $this->authorize('update', $workspace);
 
-        return view('channels.create', compact('workspace'));
+        // Load workspace members so we can select who to add to private channels
+        $members = $workspace->workspaceMembers()->with('user')->get();
+
+        // Also load channels for sidebar context
+        $userId = auth()->user()->user_id;
+        $channels = $workspace->channels()
+            ->with(['users' => fn($q) => $q->where('channel_user.user_id', $userId)])
+            ->get()
+            ->filter(function ($channel) use ($userId) {
+                if (!$channel->is_private) return true;
+                return $channel->users->contains(fn($u) => $u->user_id === $userId);
+            })->values();
+
+        return view('channels.create', compact('workspace', 'members', 'channels'));
     }
 
     public function store(Request $request, Workspace $workspace): RedirectResponse
@@ -27,6 +41,8 @@ class ChannelController extends Controller
         $validated = $request->validate([
             'channel_name' => ['required', 'string', 'max:100'],
             'is_private'   => ['boolean'],
+            'members'      => ['nullable', 'array'],
+            'members.*'    => ['integer', 'exists:users,user_id'],
         ]);
 
         $channel = Channel::create([
@@ -41,6 +57,17 @@ class ChannelController extends Controller
             'user_id'    => $request->user()->user_id,
             'joined_at'  => now(),
         ]);
+
+        // For private channels, add selected members
+        if (($validated['is_private'] ?? false) && !empty($validated['members'])) {
+            foreach ($validated['members'] as $memberId) {
+                if ((int) $memberId === $request->user()->user_id) continue; // skip creator
+                ChannelUser::firstOrCreate([
+                    'channel_id' => $channel->channel_id,
+                    'user_id'    => $memberId,
+                ], ['joined_at' => now()]);
+            }
+        }
 
         return redirect()->route('channels.show', $channel)
             ->with('success', 'Channel created.');

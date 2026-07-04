@@ -1,10 +1,21 @@
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full" wire:poll.5s="refreshMessages">
     {{-- Messages list --}}
     <div id="messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
          style="background: var(--color-bg-main);"
-         x-data="{}"
-         x-on:scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight"
+         x-data="{ playSound() {
+             try {
+                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                 const osc = ctx.createOscillator();
+                 const gain = ctx.createGain();
+                 osc.connect(gain); gain.connect(ctx.destination);
+                 osc.frequency.value = 880; osc.type = 'sine';
+                 gain.gain.setValueAtTime(0.08, ctx.currentTime);
+                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                 osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+             } catch(e) {}
+         }}"
+         x-on:scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight; playSound()"
          x-init="$el.scrollTop = $el.scrollHeight">
 
         @foreach($messages as $msg)
@@ -19,20 +30,74 @@
                     <span class="text-xs" style="color: var(--color-primary-400);">
                         {{ isset($msg['sent_at']) ? \Carbon\Carbon::parse($msg['sent_at'])->format('H:i') : '' }}
                     </span>
+                    {{-- Pin indicator --}}
+                    @if(!empty($msg['pins']) && count($msg['pins']) > 0)
+                    <span class="text-xs px-1.5 py-0.5 rounded-full" style="background: #fef3c7; color: #92400e;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20"><path d="M11.6 2.4a1 1 0 00-1.6.4L8.5 7.2 4 8.5a1 1 0 00-.4 1.7l3.2 3.2-1.5 4.3a.5.5 0 00.8.5L10 15l3.9 3.2a.5.5 0 00.8-.5l-1.5-4.3 3.2-3.2a1 1 0 00-.4-1.7l-4.5-1.3L10 2.8z"/></svg>
+                        Pinned
+                    </span>
+                    @endif
                 </div>
                 @if(!empty($msg['parent_id']))
                 <div class="text-xs italic mb-1 pl-2 border-l-2" style="color: var(--color-primary-400); border-color: var(--color-primary-300);">
                     ↩ Reply
                 </div>
                 @endif
-                <p class="text-sm leading-relaxed" style="color: var(--color-primary-800);">{{ $msg['msg_body'] }}</p>
+                {{-- Message body with @mention highlighting --}}
+                <p class="text-sm leading-relaxed" style="color: var(--color-primary-800);">
+                    {!! preg_replace('/@(\w+)/', '<span style="background: #dbeafe; color: #1d4ed8; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
+                </p>
+
+                {{-- Thread replies --}}
+                @if(!empty($msg['replies']) && count($msg['replies']) > 0)
+                <details class="mt-1">
+                    <summary class="text-xs cursor-pointer font-medium" style="color: var(--color-accent-600);">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline mr-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                        {{ count($msg['replies']) }} {{ count($msg['replies']) === 1 ? 'reply' : 'replies' }}
+                    </summary>
+                    <div class="pl-4 border-l-2 mt-1 space-y-1" style="border-color: var(--color-primary-200);">
+                        @foreach($msg['replies'] as $reply)
+                        <div class="flex items-start gap-2 py-1">
+                            <div class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style="background: var(--color-accent-600); color: white;">
+                                {{ strtoupper(substr($reply['sender']['username'] ?? '?', 0, 1)) }}
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold" style="color: var(--color-primary-700);">{{ $reply['sender']['username'] ?? 'Unknown' }}</span>
+                                <span class="text-xs ml-1" style="color: var(--color-primary-400);">{{ isset($reply['sent_at']) ? \Carbon\Carbon::parse($reply['sent_at'])->format('H:i') : '' }}</span>
+                                <p class="text-xs leading-relaxed" style="color: var(--color-primary-700);">{{ $reply['msg_body'] }}</p>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </details>
+                @endif
+
+                {{-- Attached files --}}
+                @if(!empty($msg['files']) && count($msg['files']) > 0)
+                <div class="mt-1 space-y-1">
+                    @foreach($msg['files'] as $file)
+                    <a href="{{ route('files.download', $file['file_id']) }}" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs border transition-colors hover:bg-gray-50" style="border-color: var(--color-border); color: var(--color-accent-600);">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+                        {{ $file['file_name'] }}
+                    </a>
+                    @endforeach
+                </div>
+                @endif
             </div>
             {{-- Actions on hover --}}
             <div class="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                {{-- Reply --}}
                 <button wire:click="setReply({{ $msg['message_id'] }}, '{{ addslashes(substr($msg['msg_body'], 0, 40)) }}')"
                         class="p-1 rounded hover:bg-gray-200 transition-colors" title="Reply" style="color: var(--color-primary-400);">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                    </svg>
+                </button>
+                {{-- Pin --}}
+                <button wire:click="pinMessage({{ $msg['message_id'] }})"
+                        class="p-1 rounded hover:bg-gray-200 transition-colors" title="Pin message" style="color: var(--color-primary-400);">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.75V16.5L12 14.25 7.5 16.5V3.75m9 0H18A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6A2.25 2.25 0 016 3.75h1.5m9 0h-9" />
                     </svg>
                 </button>
             </div>
@@ -50,10 +115,16 @@
         @endif
     </div>
 
-    {{-- Typing indicator --}}
+    {{-- Typing indicator with animated dots --}}
     @if($showTyping)
-    <div class="px-4 py-1 text-xs" style="color: var(--color-primary-500);">
-        <span class="italic">{{ $typingUser }} is typing…</span>
+    <div class="px-4 py-1.5 text-xs flex items-center gap-1" style="color: var(--color-primary-500);">
+        <span class="font-medium">{{ $typingUser }}</span>
+        <span>is typing</span>
+        <span class="flex gap-0.5 ml-0.5">
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0s;"></span>
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0.15s;"></span>
+            <span class="w-1 h-1 rounded-full animate-bounce" style="background: var(--color-primary-400); animation-delay: 0.3s;"></span>
+        </span>
         <span x-data x-init="setTimeout(() => $wire.hideTyping(), 3000)"></span>
     </div>
     @endif
@@ -68,18 +139,47 @@
     @endif
 
     {{-- Message composer --}}
-    <div class="p-4 border-t flex-shrink-0" style="background: white; border-color: var(--color-border);">
-        <div class="flex items-end gap-3 rounded-xl border px-4 py-3" style="border-color: var(--color-border);">
+    <div class="p-4 border-t flex-shrink-0" style="background: white; border-color: var(--color-border);"
+         x-data="{ showEmoji: false, emojis: ['😀','😂','😍','👍','👎','🎉','🔥','❤️','💯','😢','😮','🤔','👀','🚀','✅','❌','⭐','💡','📎','🎯'] }">
+
+        {{-- File attachment preview --}}
+        @if($attachment)
+        <div class="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs" style="border-color: var(--color-border); background: var(--color-primary-50);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: var(--color-accent-600);"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+            <span style="color: var(--color-primary-700);">{{ $attachment->getClientOriginalName() }}</span>
+            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">✕</button>
+        </div>
+        @endif
+
+        <div class="flex items-end gap-2 rounded-xl border px-3 py-2" style="border-color: var(--color-border);">
+            {{-- File upload button --}}
+            <label class="cursor-pointer p-1.5 rounded-lg transition-colors hover:bg-gray-100 flex-shrink-0" title="Attach file" style="color: var(--color-primary-400);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                </svg>
+                <input type="file" wire:model="attachment" class="hidden">
+            </label>
+
+            {{-- Emoji picker button --}}
+            <button type="button" @click="showEmoji = !showEmoji" class="p-1.5 rounded-lg transition-colors hover:bg-gray-100 flex-shrink-0" title="Emoji" style="color: var(--color-primary-400);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                </svg>
+            </button>
+
+            {{-- Textarea --}}
             <textarea
                 wire:model="body"
                 wire:keydown.enter.prevent="send"
                 wire:keydown.debounce.500ms="broadcastTyping"
-                placeholder="Message #{{ $channel->channel_name }}"
+                placeholder="Message #{{ $channel->channel_name }}  •  Use @username to mention"
                 rows="1"
                 class="flex-1 resize-none outline-none text-sm bg-transparent"
                 style="color: var(--color-primary-900);"
                 id="chat-composer-{{ $channel->channel_id }}"
             ></textarea>
+
+            {{-- Send button --}}
             <button wire:click="send"
                     class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
                     style="background: var(--color-accent-600);">
@@ -88,6 +188,19 @@
                 </svg>
             </button>
         </div>
+
+        {{-- Emoji grid dropdown --}}
+        <div x-show="showEmoji" @click.outside="showEmoji = false" x-transition
+             class="absolute bottom-20 left-4 z-50 bg-white border rounded-xl shadow-lg p-3 grid grid-cols-10 gap-1"
+             style="border-color: var(--color-border);">
+            <template x-for="emoji in emojis">
+                <button type="button"
+                        class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                        @click="$wire.set('body', $wire.get('body') + emoji); showEmoji = false"
+                        x-text="emoji"></button>
+            </template>
+        </div>
+
         @error('body') <p class="text-xs mt-1" style="color: #dc2626;">{{ $message }}</p> @enderror
     </div>
 </div>
