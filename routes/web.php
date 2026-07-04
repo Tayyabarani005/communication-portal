@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\DirectMessageController;
@@ -24,6 +25,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('workspaces', WorkspaceController::class);
 
     Route::prefix('workspaces/{workspace}')->group(function () {
+        Route::post('join',   [WorkspaceController::class, 'join'])->name('workspaces.join');
+        Route::post('invite', [WorkspaceController::class, 'invite'])->name('workspaces.invite');
         Route::get('channels/create', [ChannelController::class, 'create'])->name('workspaces.channels.create');
         Route::post('channels', [ChannelController::class, 'store'])->name('workspaces.channels.store');
         Route::post('channels/{channel}/join', [ChannelController::class, 'join'])->name('channels.join');
@@ -59,6 +62,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    /* ── Users (search) ── */
+    Route::get('/users/search', [UserController::class, 'search'])->name('users.search');
 });
 
 require __DIR__.'/auth.php';
