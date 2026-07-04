@@ -1,5 +1,5 @@
 {{-- DM Window Livewire Component --}}
-<div class="flex flex-col h-full" wire:poll.5s="refreshMessages">
+<div class="flex flex-col flex-1 min-h-0" wire:poll.2s="refreshMessages">
     {{-- Messages list --}}
     <div id="dm-messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
@@ -37,9 +37,9 @@
                 </div>
                 <div class="inline-block px-3 py-2 rounded-xl text-sm mt-0.5 {{ $isMine ? 'rounded-tr-sm' : 'rounded-tl-sm' }}"
                      style="{{ $isMine
-                        ? 'background: var(--color-accent-600); color: white;'
+                        ? 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;'
                         : 'background: white; color: var(--color-primary-800); border: 1px solid var(--color-border);' }}">
-                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(255,255,255,0.2); padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
+                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
                 </div>
 
                 {{-- Attached files --}}

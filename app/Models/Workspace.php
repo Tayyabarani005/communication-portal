@@ -19,6 +19,7 @@ class Workspace extends Model
     protected $fillable = [
         'name',
         'description',
+        'avatar_url',
     ];
 
     public function channels(): HasMany

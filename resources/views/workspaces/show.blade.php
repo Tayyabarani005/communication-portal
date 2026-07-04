@@ -223,11 +223,18 @@
                     <div class="space-y-3">
                         @foreach($members as $member)
                         <div class="flex items-center gap-3">
-                            <div class="avatar-initials w-8 h-8 text-sm flex-shrink-0">
-                                @if($member->user->avatar_url)
-                                    <img src="{{ $member->user->avatar_url }}" alt="{{ $member->user->username }}" class="avatar w-8 h-8">
+                            <div class="relative flex-shrink-0">
+                                <div class="avatar-initials w-8 h-8 text-sm flex items-center justify-center">
+                                    @if($member->user->avatar_url)
+                                        <img src="{{ $member->user->avatar_url }}" alt="{{ $member->user->username }}" class="avatar w-8 h-8 rounded-full">
+                                    @else
+                                        {{ strtoupper(substr($member->user->username, 0, 1)) }}
+                                    @endif
+                                </div>
+                                @if($member->user->isOnline())
+                                    <span class="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-white" style="background-color: #22c55e;"></span>
                                 @else
-                                    {{ strtoupper(substr($member->user->username, 0, 1)) }}
+                                    <span class="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-white" style="background-color: #9ca3af;"></span>
                                 @endif
                             </div>
                             <div class="flex-1 min-w-0">
@@ -239,6 +246,14 @@
                             @if($member->role->value === 'admin')
                             <span class="text-xs px-2 py-0.5 rounded-full font-medium"
                                   style="background: var(--color-accent-50); color: var(--color-accent-700);">Admin</span>
+                            @elseif($isAdmin)
+                            <form method="POST" action="{{ route('workspaces.members.remove', [$workspace, $member->member_id]) }}" onsubmit="return confirm('Are you sure you want to remove this member?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-xs font-semibold hover:underline" style="color: #ef4444; background: none; border: none; cursor: pointer; padding: 0;">
+                                    Remove
+                                </button>
+                            </form>
                             @endif
                         </div>
                         @endforeach

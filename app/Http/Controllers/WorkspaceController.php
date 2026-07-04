@@ -51,6 +51,7 @@ class WorkspaceController extends Controller
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],
+            'avatar_url'  => ['nullable', 'url', 'max:2048'],
         ]);
 
         $workspace = Workspace::create($validated);
@@ -224,15 +225,34 @@ class WorkspaceController extends Controller
                 ->with('error', 'This user is already a member.');
         }
 
-        WorkspaceMember::create([
+        // Check if there is already a pending join request or invitation
+        $existingRequest = WorkspaceJoinRequest::where('workspace_id', $workspace->workspace_id)
+            ->where('user_id', $invitee->user_id)
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($existingRequest) {
+            return redirect()->route('workspaces.show', $workspace)
+                ->with('error', 'An invitation or join request is already pending for this user.');
+        }
+
+        // Create pending join request
+        WorkspaceJoinRequest::updateOrCreate(
+            ['workspace_id' => $workspace->workspace_id, 'user_id' => $invitee->user_id],
+            ['status' => 'pending']
+        );
+
+        // Create notification for invitee
+        Notification::create([
             'user_id'      => $invitee->user_id,
+            'sender_id'    => auth()->user()->user_id,
+            'type'         => 'workspace_invite',
             'workspace_id' => $workspace->workspace_id,
-            'role'         => WorkspaceRole::MEMBER,
-            'joined_at'    => now(),
+            'text'         => auth()->user()->username . ' invited you to join the workspace: ' . $workspace->name,
         ]);
 
         return redirect()->route('workspaces.show', $workspace)
-            ->with('success', "Added {$invitee->username} to the workspace.");
+            ->with('success', "Invitation sent to {$invitee->username}.");
     }
 
     public function edit(Workspace $workspace): View
@@ -260,6 +280,7 @@ class WorkspaceController extends Controller
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],
+            'avatar_url'  => ['nullable', 'url', 'max:2048'],
         ]);
 
         $workspace->update($validated);
@@ -275,5 +296,78 @@ class WorkspaceController extends Controller
 
         return redirect()->route('workspaces.index')
             ->with('success', 'Workspace deleted.');
+    }
+
+    /**
+     * Accept a workspace invitation.
+     */
+    public function acceptInvite(Request $request, Workspace $workspace): RedirectResponse
+    {
+        $userId = auth()->user()->user_id;
+
+        $joinRequest = WorkspaceJoinRequest::where('workspace_id', $workspace->workspace_id)
+            ->where('user_id', $userId)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        $joinRequest->update(['status' => 'accepted']);
+
+        WorkspaceMember::firstOrCreate(
+            ['workspace_id' => $workspace->workspace_id, 'user_id' => $userId],
+            ['role' => WorkspaceRole::MEMBER, 'joined_at' => now()]
+        );
+
+        // Notify the admin who invited them
+        Notification::create([
+            'user_id'      => $workspace->workspaceMembers()->where('role', 'admin')->first()?->user_id ?? $userId,
+            'sender_id'    => $userId,
+            'type'         => 'workspace_invite_accepted',
+            'workspace_id' => $workspace->workspace_id,
+            'text'         => auth()->user()->username . ' accepted your invitation to join ' . $workspace->name . '.',
+        ]);
+
+        return redirect()->route('workspaces.show', $workspace)
+            ->with('success', "You have joined {$workspace->name}!");
+    }
+
+    /**
+     * Decline a workspace invitation.
+     */
+    public function rejectInvite(Request $request, Workspace $workspace): RedirectResponse
+    {
+        $userId = auth()->user()->user_id;
+
+        $joinRequest = WorkspaceJoinRequest::where('workspace_id', $workspace->workspace_id)
+            ->where('user_id', $userId)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        $joinRequest->update(['status' => 'rejected']);
+
+        return redirect()->route('workspaces.index')
+            ->with('success', "Declined invitation to {$workspace->name}.");
+    }
+
+    /**
+     * Remove a member from the workspace (admin only).
+     */
+    public function removeMember(Request $request, Workspace $workspace, int $member): RedirectResponse
+    {
+        $this->authorize('update', $workspace);
+
+        $memberModel = WorkspaceMember::where('member_id', $member)
+            ->where('workspace_id', $workspace->workspace_id)
+            ->firstOrFail();
+
+        if ($memberModel->role->value === 'admin') {
+            return redirect()->route('workspaces.show', $workspace)
+                ->with('error', 'Cannot remove an admin from the workspace.');
+        }
+
+        $username = $memberModel->user->username;
+        $memberModel->delete();
+
+        return redirect()->route('workspaces.show', $workspace)
+            ->with('success', "{$username} has been removed from the workspace.");
     }
 }

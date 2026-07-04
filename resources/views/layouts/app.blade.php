@@ -65,28 +65,42 @@
             @auth
 
             {{-- DM --}}
+            @php
+                $userId = auth()->user()->user_id;
+                $conversations = \App\Models\DmConversation::whereHas('dmParticipants', fn($q) => $q->where('user_id', $userId))->get();
+                $totalUnreadDms = 0;
+                foreach ($conversations as $conv) {
+                    $readState = \App\Models\DmReadState::where('conversation_id', $conv->conversation_id)
+                        ->where('user_id', $userId)
+                        ->first();
+                    $unread = \App\Models\DirectMessage::where('conversation_id', $conv->conversation_id)
+                        ->when($readState?->last_read_message_id, fn($q, $id) => $q->where('dm_message_id', '>', $id))
+                        ->count();
+                    $totalUnreadDms += $unread;
+                }
+            @endphp
+
             <a href="{{ route('dms.index') }}" title="Direct Messages"
-               class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+               class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors relative"
                style="color: rgba(255,255,255,0.35);"
                onmouseover="this.style.background='rgba(255,255,255,0.07)'; this.style.color='white'"
                onmouseout="this.style.background='transparent'; this.style.color='rgba(255,255,255,0.35)'">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
                 </svg>
+                @if($totalUnreadDms > 0)
+                <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
+                      style="background: #ef4444; font-size: 0.55rem;">
+                    {{ $totalUnreadDms > 9 ? '9+' : $totalUnreadDms }}
+                </span>
+                @endif
             </a>
 
             {{-- Notifications Bell --}}
             @php
-                $pendingJoinRequests = \App\Models\WorkspaceJoinRequest::whereHas('workspace.workspaceMembers', function($q) {
-                    $q->where('user_id', auth()->user()->user_id)->where('role', 'admin');
-                })->where('status', 'pending')->count();
-
-                $myAcceptedRequests = \App\Models\WorkspaceJoinRequest::where('user_id', auth()->user()->user_id)
-                    ->where('status', 'accepted')
-                    ->whereDate('updated_at', '>=', now()->subDays(7))
+                $notifCount = \App\Models\Notification::where('user_id', auth()->user()->user_id)
+                    ->where('is_seen', false)
                     ->count();
-
-                $notifCount = $pendingJoinRequests + $myAcceptedRequests;
             @endphp
 
             <div class="relative" id="notif-wrapper">
@@ -117,27 +131,14 @@
                     </div>
                     <div class="overflow-y-auto" style="max-height: 320px;">
                         @php
-                            // Admin: pending join requests for workspaces I admin
-                            $adminWorkspaceIds = \App\Models\WorkspaceMember::where('user_id', auth()->user()->user_id)
-                                ->where('role', 'admin')
-                                ->pluck('workspace_id');
-
-                            $pendingRequests = \App\Models\WorkspaceJoinRequest::whereIn('workspace_id', $adminWorkspaceIds)
-                                ->where('status', 'pending')
-                                ->with(['user', 'workspace'])
+                            $userNotifications = \App\Models\Notification::where('user_id', auth()->user()->user_id)
+                                ->with(['sender', 'workspace', 'channel'])
                                 ->latest()
-                                ->get();
-
-                            // My accepted/rejected requests
-                            $myRequests = \App\Models\WorkspaceJoinRequest::where('user_id', auth()->user()->user_id)
-                                ->whereIn('status', ['accepted', 'rejected'])
-                                ->whereDate('updated_at', '>=', now()->subDays(7))
-                                ->with('workspace')
-                                ->latest()
+                                ->limit(15)
                                 ->get();
                         @endphp
 
-                        @if($pendingRequests->isEmpty() && $myRequests->isEmpty())
+                        @if($userNotifications->isEmpty())
                         <div class="px-4 py-8 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mx-auto mb-2" style="color: var(--color-text-muted);">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -146,48 +147,83 @@
                         </div>
                         @endif
 
-                        {{-- Admin: pending join requests --}}
-                        @foreach($pendingRequests as $req)
-                        <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+                        @foreach($userNotifications as $notif)
+                        <div class="px-4 py-3 border-b hover:bg-gray-50 transition-colors" style="border-color: var(--color-border); {{ !$notif->is_seen ? 'background: #f0f9ff;' : '' }}">
                             <div class="flex items-start gap-3">
-                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                                     style="background: var(--color-accent-100); color: var(--color-accent-700);">
-                                    {{ strtoupper(substr($req->user->username, 0, 1)) }}
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-medium" style="color: var(--color-text-primary);">
-                                        <span class="font-semibold">{{ $req->user->username }}</span> wants to join <span class="font-semibold">{{ $req->workspace->name }}</span>
-                                    </p>
-                                    <p class="text-xs mt-0.5" style="color: var(--color-text-muted);">{{ $req->created_at->diffForHumans() }}</p>
-                                    <div class="flex gap-2 mt-2">
-                                        <form method="POST" action="{{ route('workspaces.join-requests.approve', [$req->workspace, $req]) }}">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-primary">Accept</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('workspaces.join-requests.reject', [$req->workspace, $req]) }}">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-secondary" style="color: #dc2626;">Decline</button>
-                                        </form>
+                                @if($notif->type === 'join_request' || $notif->type === 'workspace_invite')
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                         style="background: var(--color-accent-100); color: var(--color-accent-700);">
+                                        {{ strtoupper(substr($notif->sender->username ?? '?', 0, 1)) }}
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
+                                @elseif($notif->type === 'join_accepted' || $notif->type === 'workspace_invite_accepted')
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                                         style="background: #22c55e; font-size: 0.8rem; font-weight: bold;">
+                                        ✓
+                                    </div>
+                                @elseif($notif->type === 'join_rejected')
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                                         style="background: #ef4444; font-size: 0.8rem; font-weight: bold;">
+                                        ✕
+                                    </div>
+                                @else
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                         style="background: var(--color-primary-100); color: var(--color-primary-700);">
+                                        @
+                                    </div>
+                                @endif
 
-                        {{-- My request status updates --}}
-                        @foreach($myRequests as $req)
-                        <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
-                            <div class="flex items-start gap-3">
-                                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                     style="background: {{ $req->status === 'accepted' ? 'var(--color-success-bg)' : 'var(--color-error-bg)' }}; color: {{ $req->status === 'accepted' ? 'var(--color-success-text)' : 'var(--color-error-text)' }}; font-size: 1rem;">
-                                    {{ $req->status === 'accepted' ? '✓' : '✕' }}
-                                </div>
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm" style="color: var(--color-text-primary);">
-                                        Your request to join <span class="font-semibold">{{ $req->workspace->name }}</span> was
-                                        <span class="font-semibold" style="color: {{ $req->status === 'accepted' ? 'var(--color-success-text)' : 'var(--color-error-text)' }}">{{ $req->status }}</span>.
+                                        {{ $notif->text }}
                                     </p>
-                                    <p class="text-xs mt-0.5" style="color: var(--color-text-muted);">{{ $req->updated_at->diffForHumans() }}</p>
+                                    <p class="text-xs mt-0.5" style="color: var(--color-text-muted);">{{ $notif->created_at->diffForHumans() }}</p>
+
+                                    @if($notif->type === 'join_request')
+                                        @php
+                                            $joinReq = \App\Models\WorkspaceJoinRequest::where('workspace_id', $notif->workspace_id)
+                                                ->where('user_id', $notif->sender_id)
+                                                ->where('status', 'pending')
+                                                ->first();
+                                        @endphp
+                                        @if($joinReq)
+                                        <div class="flex gap-2 mt-2">
+                                            <form method="POST" action="{{ route('workspaces.join-requests.approve', [$notif->workspace, $joinReq]) }}">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-primary">Accept</button>
+                                            </form>
+                                            <form method="POST" action="{{ route('workspaces.join-requests.reject', [$notif->workspace, $joinReq]) }}">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-secondary" style="color: #dc2626;">Decline</button>
+                                            </form>
+                                        </div>
+                                    @endif
+
+                                    @if($notif->type === 'workspace_invite')
+                                        @php
+                                            $joinReq = \App\Models\WorkspaceJoinRequest::where('workspace_id', $notif->workspace_id)
+                                                ->where('user_id', auth()->user()->user_id)
+                                                ->where('status', 'pending')
+                                                ->first();
+                                        @endphp
+                                        @if($joinReq)
+                                        <div class="flex gap-2 mt-2">
+                                            <form method="POST" action="{{ route('workspaces.invite.accept', $notif->workspace) }}">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-primary">Accept</button>
+                                            </form>
+                                            <form method="POST" action="{{ route('workspaces.invite.reject', $notif->workspace) }}">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-secondary" style="color: #dc2626;">Decline</button>
+                                            </form>
+                                        </div>
+                                        @endif
+                                    @endif
+
+                                    @if($notif->type === 'tag' && $notif->channel_id)
+                                        <a href="{{ route('channels.show', $notif->channel_id) }}" class="inline-block mt-1 text-xs font-semibold hover:underline" style="color: var(--color-accent-600);">
+                                            View Channel
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
                         </div>

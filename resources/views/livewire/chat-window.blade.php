@@ -1,4 +1,4 @@
-<div class="flex flex-col h-full" wire:poll.5s="refreshMessages">
+<div class="flex flex-col flex-1 min-h-0" wire:poll.2s="refreshMessages">
     {{-- Messages list --}}
     <div id="messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
@@ -19,21 +19,23 @@
          x-init="$el.scrollTop = $el.scrollHeight">
 
         @foreach($messages as $msg)
-        <div class="flex items-start gap-3 group px-2 py-1.5 rounded-lg hover:bg-white transition-colors">
+        @php $isMine = ($msg['sender_id'] ?? null) == auth()->user()->user_id; @endphp
+        <div class="flex items-start gap-3 group px-2 py-1.5 rounded-lg hover:bg-white transition-colors {{ $isMine ? 'flex-row-reverse' : '' }}">
             <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5"
-                 style="background: var(--color-accent-700); color: white;">
+                 style="background: {{ $isMine ? 'var(--color-accent-600)' : 'var(--color-accent-700)' }}; color: white;">
                 {{ strtoupper(substr($msg['sender']['username'] ?? '?', 0, 1)) }}
             </div>
-            <div class="min-w-0 flex-1">
-                <div class="flex items-baseline gap-2">
-                    <span class="text-sm font-semibold" style="color: var(--color-primary-900);">{{ $msg['sender']['username'] ?? 'Unknown' }}</span>
+            <div class="min-w-0 max-w-xs lg:max-w-md flex flex-col {{ $isMine ? 'items-end' : 'items-start' }} flex-1">
+                <div class="flex items-baseline gap-2 {{ $isMine ? 'flex-row-reverse' : '' }}">
+                    <span class="text-xs font-semibold" style="color: var(--color-primary-700);">
+                        {{ $isMine ? 'You' : ($msg['sender']['username'] ?? 'Unknown') }}
+                    </span>
                     <span class="text-xs" style="color: var(--color-primary-400);">
                         {{ isset($msg['sent_at']) ? \Carbon\Carbon::parse($msg['sent_at'])->format('H:i') : '' }}
                     </span>
                     {{-- Pin indicator --}}
                     @if(!empty($msg['pins']) && count($msg['pins']) > 0)
                     <span class="text-xs px-1.5 py-0.5 rounded-full" style="background: #fef3c7; color: #92400e;">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20"><path d="M11.6 2.4a1 1 0 00-1.6.4L8.5 7.2 4 8.5a1 1 0 00-.4 1.7l3.2 3.2-1.5 4.3a.5.5 0 00.8.5L10 15l3.9 3.2a.5.5 0 00.8-.5l-1.5-4.3 3.2-3.2a1 1 0 00-.4-1.7l-4.5-1.3L10 2.8z"/></svg>
                         Pinned
                     </span>
                     @endif
@@ -44,9 +46,12 @@
                 </div>
                 @endif
                 {{-- Message body with @mention highlighting --}}
-                <p class="text-sm leading-relaxed" style="color: var(--color-primary-800);">
-                    {!! preg_replace('/@(\w+)/', '<span style="background: #dbeafe; color: #1d4ed8; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
-                </p>
+                <div class="inline-block px-3 py-2 rounded-xl text-sm mt-0.5 {{ $isMine ? 'rounded-tr-sm' : 'rounded-tl-sm' }}"
+                     style="{{ $isMine
+                        ? 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;'
+                        : 'background: white; color: var(--color-primary-800); border: 1px solid var(--color-border);' }}">
+                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
+                </div>
 
                 {{-- Thread replies --}}
                 @if(!empty($msg['replies']) && count($msg['replies']) > 0)
@@ -85,7 +90,7 @@
                 @endif
             </div>
             {{-- Actions on hover --}}
-            <div class="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+            <div class="hidden group-hover:flex items-center gap-1 flex-shrink-0 {{ $isMine ? 'mr-auto' : 'ml-auto' }}">
                 {{-- Reply --}}
                 <button wire:click="setReply({{ $msg['message_id'] }}, '{{ addslashes(substr($msg['msg_body'], 0, 40)) }}')"
                         class="p-1 rounded hover:bg-gray-200 transition-colors" title="Reply" style="color: var(--color-primary-400);">

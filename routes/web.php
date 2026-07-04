@@ -29,10 +29,13 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('workspaces/{workspace}')->group(function () {
         Route::post('join',   [WorkspaceController::class, 'join'])->name('workspaces.join');
         Route::post('invite', [WorkspaceController::class, 'invite'])->name('workspaces.invite');
+        Route::post('invite/accept', [WorkspaceController::class, 'acceptInvite'])->name('workspaces.invite.accept');
+        Route::post('invite/reject', [WorkspaceController::class, 'rejectInvite'])->name('workspaces.invite.reject');
 
         // Join request approval routes (admin only)
         Route::post('join-requests/{joinRequest}/approve', [WorkspaceController::class, 'approveJoin'])->name('workspaces.join-requests.approve');
         Route::post('join-requests/{joinRequest}/reject',  [WorkspaceController::class, 'rejectJoin'])->name('workspaces.join-requests.reject');
+        Route::delete('members/{member}', [WorkspaceController::class, 'removeMember'])->name('workspaces.members.remove');
 
         Route::get('channels/create', [ChannelController::class, 'create'])->name('workspaces.channels.create');
         Route::post('channels', [ChannelController::class, 'store'])->name('workspaces.channels.store');

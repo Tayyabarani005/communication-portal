@@ -73,7 +73,7 @@ class ChatWindow extends Component
         $this->authorize('sendMessage', $this->channel);
 
         $this->validate([
-            'body' => ['required', 'string', 'max:4000'],
+            'body' => [empty($this->attachment) ? 'required' : 'nullable', 'string', 'max:4000'],
             'attachment' => ['nullable', 'file', 'max:10240'],
         ]);
 
@@ -81,7 +81,7 @@ class ChatWindow extends Component
             'channel_id' => $this->channel->channel_id,
             'sender_id'  => auth()->user()->user_id,
             'parent_id'  => $this->parentId,
-            'msg_body'   => $this->body,
+            'msg_body'   => $this->body ?? '',
             'msg_type'   => 'text',
             'sent_at'    => now(),
         ]);
@@ -101,7 +101,7 @@ class ChatWindow extends Component
         }
 
         // Parse @mentions and create notifications
-        $this->parseMentions($this->body, $message);
+        $this->parseMentions($this->body ?? '', $message);
 
         $message->load('sender');
 
@@ -173,12 +173,43 @@ class ChatWindow extends Component
 
     public function broadcastTyping(): void
     {
-        broadcast(new UserTyping(
-            auth()->user()->user_id,
+        $userId = auth()->user()->user_id;
+        \Illuminate\Support\Facades\Cache::put(
+            'typing-channel-' . $this->channel->channel_id . '-' . $userId,
             auth()->user()->username,
-            'channel',
-            $this->channel->channel_id,
-        ))->toOthers();
+            now()->addSeconds(6)
+        );
+
+        try {
+            broadcast(new UserTyping(
+                $userId,
+                auth()->user()->username,
+                'channel',
+                $this->channel->channel_id,
+            ))->toOthers();
+        } catch (\Exception $e) {}
+    }
+
+    public function checkTyping(): void
+    {
+        $userId = auth()->user()->user_id;
+        $members = $this->channel->workspace->workspaceMembers()->pluck('user_id');
+        $typingNames = [];
+        foreach ($members as $memberId) {
+            if ((int) $memberId === $userId) continue;
+            $name = \Illuminate\Support\Facades\Cache::get('typing-channel-' . $this->channel->channel_id . '-' . $memberId);
+            if ($name) {
+                $typingNames[] = $name;
+            }
+        }
+
+        if (!empty($typingNames)) {
+            $this->typingUser = implode(', ', $typingNames);
+            $this->showTyping = true;
+        } else {
+            $this->showTyping = false;
+            $this->typingUser = '';
+        }
     }
 
     /**
@@ -187,6 +218,7 @@ class ChatWindow extends Component
     public function refreshMessages(): void
     {
         $this->loadMessages();
+        $this->checkTyping();
     }
 
     #[On('echo-private:channel.{channel.channel_id},MessageSent')]
@@ -203,8 +235,6 @@ class ChatWindow extends Component
         if ((int) $data['user_id'] !== auth()->user()->user_id) {
             $this->typingUser = $data['username'];
             $this->showTyping = true;
-            // Auto-hide after 3 seconds
-            $this->dispatch('hide-typing-after-delay');
         }
     }
 

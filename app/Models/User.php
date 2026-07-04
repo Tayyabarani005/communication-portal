@@ -75,6 +75,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Boot the model and register cascade deletes on deleting event.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            $user->workspaceMembers()->delete();
+            $user->channels()->detach();
+            $user->messages()->delete();
+            $user->directMessages()->delete();
+            $user->createdTasks()->delete();
+            $user->assignedTasks()->update(['assigned_to' => null]);
+            
+            \DB::table('channel_read_states')->where('user_id', $user->user_id)->delete();
+            \DB::table('dm_read_states')->where('user_id', $user->user_id)->delete();
+            \DB::table('pinned_messages')->where('pinned_by', $user->user_id)->delete();
+            \DB::table('workspace_join_requests')->where('user_id', $user->user_id)->delete();
+            \DB::table('notifications')
+                ->where('user_id', $user->user_id)
+                ->orWhere('sender_id', $user->user_id)
+                ->delete();
+        });
+    }
+
+    /**
      * Get the user's password (compatibility alias for password_hash).
      */
     public function getPasswordAttribute(): ?string
@@ -137,5 +161,13 @@ class User extends Authenticatable
     public function assignedTasks(): HasMany
     {
         return $this->hasMany(Task::class, 'assigned_to', 'user_id');
+    }
+
+    /**
+     * Check if user is online.
+     */
+    public function isOnline(): bool
+    {
+        return \Illuminate\Support\Facades\Cache::has('user-online-' . $this->user_id);
     }
 }

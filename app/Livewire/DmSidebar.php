@@ -46,6 +46,7 @@ class DmSidebar extends Component
                     'conversation_id' => $conv->conversation_id,
                     'other_username'  => $otherUser?->username ?? 'Unknown',
                     'other_avatar'    => $otherUser?->avatar_url,
+                    'is_online'       => $otherUser ? $otherUser->isOnline() : false,
                     'unread'          => $unread,
                     'url'             => route('dms.show', $conv),
                 ];
