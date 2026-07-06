@@ -21,6 +21,7 @@ class PinnedMessagesPanel extends Component
     public function mount(Channel $channel): void
     {
         $this->channel = $channel;
+        $this->loadPins(); // Load on mount so count badge is visible immediately
     }
 
     public function toggle(): void

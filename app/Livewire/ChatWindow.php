@@ -82,7 +82,7 @@ class ChatWindow extends Component
             'sender_id'  => auth()->user()->user_id,
             'parent_id'  => $this->parentId,
             'msg_body'   => $this->body ?? '',
-            'msg_type'   => 'text',
+            'msg_type'   => $this->attachment ? 'file' : 'text',
             'sent_at'    => now(),
         ]);
 

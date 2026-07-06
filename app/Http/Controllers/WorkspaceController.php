@@ -51,10 +51,20 @@ class WorkspaceController extends Controller
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],
-            'avatar_url'  => ['nullable', 'url', 'max:2048'],
+            'avatar'      => ['nullable', 'image', 'max:2048'],
         ]);
 
-        $workspace = Workspace::create($validated);
+        $avatarUrl = null;
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('workspace-avatars', 'public');
+            $avatarUrl = asset('storage/' . $path);
+        }
+
+        $workspace = Workspace::create([
+            'name'        => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'avatar_url'  => $avatarUrl,
+        ]);
 
         WorkspaceMember::create([
             'user_id'      => $request->user()->user_id,
@@ -280,10 +290,20 @@ class WorkspaceController extends Controller
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],
-            'avatar_url'  => ['nullable', 'url', 'max:2048'],
+            'avatar'      => ['nullable', 'image', 'max:2048'],
         ]);
 
-        $workspace->update($validated);
+        $data = [
+            'name'        => $validated['name'],
+            'description' => $validated['description'] ?? null,
+        ];
+
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('workspace-avatars', 'public');
+            $data['avatar_url'] = asset('storage/' . $path);
+        }
+
+        $workspace->update($data);
 
         return redirect()->route('workspaces.show', $workspace)
             ->with('success', 'Workspace updated successfully.');

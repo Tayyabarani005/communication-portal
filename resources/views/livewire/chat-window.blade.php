@@ -1,4 +1,4 @@
-<div class="flex flex-col flex-1 min-h-0" wire:poll.2s="refreshMessages">
+﻿<div class="flex flex-col flex-1 min-h-0" wire:poll.2s="refreshMessages">
     {{-- Messages list --}}
     <div id="messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
@@ -43,22 +43,24 @@
                     {{-- Pin indicator --}}
                     @if($isPinned)
                     <span class="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium" style="background: #fef3c7; color: #92400e;">
-                        📌 Pinned
+                        ðŸ“Œ Pinned
                     </span>
                     @endif
                 </div>
                 @if(!empty($msg['parent_id']))
                 <div class="text-xs italic mb-1 pl-2 border-l-2" style="color: var(--color-primary-400); border-color: var(--color-primary-300);">
-                    ↩ Reply
+                    â†© Reply
                 </div>
                 @endif
                 {{-- Message body with @mention highlighting --}}
+                @if(!empty($msg['msg_body']) || (empty($msg['files']) || count($msg['files']) === 0))
                 <div class="inline-block px-3 py-2 rounded-xl text-sm mt-0.5 {{ $isMine ? 'rounded-tr-sm' : 'rounded-tl-sm' }}"
                      style="{{ $isMine
                         ? 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;'
                         : 'background: white; color: var(--color-primary-800); border: 1px solid var(--color-border);' }}">
-                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
+                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'] ?? '')) !!}
                 </div>
+                @endif
 
                 {{-- Thread replies --}}
                 @if(!empty($msg['replies']) && count($msg['replies']) > 0)
@@ -151,8 +153,8 @@
     @if($parentId)
     <div class="mx-4 px-3 py-2 rounded-t-lg border-b-0 border text-xs flex items-center justify-between"
          style="background: var(--color-pin-bg); border-color: var(--color-pin-border); color: var(--color-pin-text);">
-        <span>↩ Replying to: <em>{{ $replyPreview }}</em></span>
-        <button wire:click="clearReply" class="ml-2 font-bold hover:opacity-60">✕</button>
+        <span>â†© Replying to: <em>{{ $replyPreview }}</em></span>
+        <button wire:click="clearReply" class="ml-2 font-bold hover:opacity-60">âœ•</button>
     </div>
     @endif
 
@@ -160,7 +162,7 @@
     <div class="p-4 border-t flex-shrink-0 relative" style="background: white; border-color: var(--color-border);"
          x-data="{
              showEmoji: false,
-             emojis: ['😀','😂','😍','👍','👎','🎉','🔥','❤️','💯','😢','😮','🤔','👀','🚀','✅','❌','⭐','💡','📎','🎯'],
+             emojis: ['ðŸ˜€','ðŸ˜‚','ðŸ˜','ðŸ‘','ðŸ‘Ž','ðŸŽ‰','ðŸ”¥','â¤ï¸','ðŸ’¯','ðŸ˜¢','ðŸ˜®','ðŸ¤”','ðŸ‘€','ðŸš€','âœ…','âŒ','â­','ðŸ’¡','ðŸ“Ž','ðŸŽ¯'],
              mentionsOpen: false,
              mentionQuery: '',
              mentionUsers: [],
@@ -196,7 +198,11 @@
              },
              fetchMentionSuggestions() {
                  if (this.mentionQuery.length >= 1) {
-                     fetch(`/users/search?q=${encodeURIComponent(this.mentionQuery)}`)
+                     const wsId = {{ $channel->workspace_id ?? 'null' }};
+                     const searchUrl = wsId
+                         ? '/users/search?q=' + encodeURIComponent(this.mentionQuery) + '&workspace_id=' + wsId
+                         : '/users/search?q=' + encodeURIComponent(this.mentionQuery);
+                     fetch(searchUrl)
                          .then(res => res.json())
                          .then(data => {
                              this.mentionUsers = data;
@@ -255,7 +261,7 @@
         <div class="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs" style="border-color: var(--color-border); background: var(--color-primary-50);">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: var(--color-accent-600);"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
             <span style="color: var(--color-primary-700);">{{ $attachment->getClientOriginalName() }}</span>
-            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">✕</button>
+            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">âœ•</button>
         </div>
         @endif
 
@@ -280,7 +286,7 @@
                 wire:model="body"
                 wire:keydown.enter.prevent="send"
                 wire:keydown.debounce.500ms="broadcastTyping"
-                placeholder="Message #{{ $channel->channel_name }}  •  Use @username to mention"
+                placeholder="Message #{{ $channel->channel_name }}  â€¢  Use @username to mention"
                 rows="1"
                 class="flex-1 resize-none outline-none text-sm bg-transparent"
                 style="color: var(--color-primary-900);"
@@ -340,3 +346,4 @@
         @error('attachment') <p class="text-xs mt-1" style="color: #dc2626;">{{ $message }}</p> @enderror
     </div>
 </div>
+

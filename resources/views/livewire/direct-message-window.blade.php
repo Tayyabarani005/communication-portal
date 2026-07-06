@@ -39,12 +39,14 @@
                         {{ isset($msg['sent_at']) ? \Carbon\Carbon::parse($msg['sent_at'])->format('H:i') : '' }}
                     </span>
                 </div>
+                @if(!empty($msg['msg_body']) || (empty($msg['files']) || count($msg['files']) === 0))
                 <div class="inline-block px-3 py-2 rounded-xl text-sm mt-0.5 {{ $isMine ? 'rounded-tr-sm' : 'rounded-tl-sm' }}"
                      style="{{ $isMine
                         ? 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;'
                         : 'background: white; color: var(--color-primary-800); border: 1px solid var(--color-border);' }}">
-                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'])) !!}
+                    {!! preg_replace('/@(\w+)/', '<span style="background: rgba(3,105,161,0.15); color: #0369a1; padding: 0 3px; border-radius: 3px; font-weight: 500;">@$1</span>', e($msg['msg_body'] ?? '')) !!}
                 </div>
+                @endif
 
                 {{-- Attached files --}}
                 @if(!empty($msg['files']) && count($msg['files']) > 0)
