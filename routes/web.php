@@ -43,6 +43,14 @@ Route::middleware(['auth'])->group(function () {
         Route::post('channels/{channel}/leave', [ChannelController::class, 'leave'])->name('channels.leave');
     });
 
+    // routes/web.php
+    Route::get('/debug-ext', function () {
+        return response()->json([
+            'pdo_drivers' => \PDO::getAvailableDrivers(),
+            'php_version' => PHP_VERSION,
+        ]);
+    });
+
     /* ── Channels ── */
     Route::get('channels/{channel}', [ChannelController::class, 'show'])->name('channels.show');
     Route::get('channels/{channel}/edit', [ChannelController::class, 'edit'])->name('channels.edit');
