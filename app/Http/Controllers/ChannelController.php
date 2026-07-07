@@ -79,6 +79,18 @@ class ChannelController extends Controller
 
         $channel->load('workspace');
 
+        // Auto-join the authenticated user to public channels so they can send messages.
+        // Private channels require an explicit invite via the create flow.
+        if (!$channel->is_private) {
+            ChannelUser::firstOrCreate(
+                [
+                    'channel_id' => $channel->channel_id,
+                    'user_id'    => auth()->user()->user_id,
+                ],
+                ['joined_at' => now()]
+            );
+        }
+
         return view('channels.show', compact('channel'));
     }
 
