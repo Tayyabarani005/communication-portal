@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Create Task — #{{ $channel->channel_name }}</x-slot>
+    <x-slot name="title">Create Task - #{{ $channel->channel_name }}</x-slot>
 
     <div class="flex-1 flex items-center justify-center p-8" style="background: var(--color-bg-main);">
         <div class="w-full max-w-lg rounded-2xl shadow-lg border p-8" style="background: white; border-color: var(--color-border);">

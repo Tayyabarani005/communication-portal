@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Livewire;
 
 use App\Models\Channel;
-use App\Models\ChannelReadState;
 use App\Models\Message;
 use App\Models\Workspace;
 use Illuminate\Contracts\View\View;
@@ -31,24 +30,36 @@ class ChannelSidebar extends Component
     {
         $userId = auth()->user()->user_id;
 
-        $this->channels = Channel::where('workspace_id', $this->workspace->workspace_id)
+        $channels = Channel::where('workspace_id', $this->workspace->workspace_id)
             ->whereHas('users', fn($q) => $q->where('channel_user.user_id', $userId))
-            ->with(['messages' => fn($q) => $q->latest('sent_at')->limit(1)])
-            ->get()
-            ->map(function (Channel $channel) use ($userId) {
-                $readState = ChannelReadState::where('channel_id', $channel->channel_id)
-                    ->where('user_id', $userId)
-                    ->first();
+            ->select('channel_id', 'workspace_id', 'channel_name', 'is_private')
+            ->get();
 
-                $unread = Message::where('channel_id', $channel->channel_id)
-                    ->when($readState?->last_read_message_id, fn($q, $id) => $q->where('message_id', '>', $id))
-                    ->count();
+        $channelIds = $channels->pluck('channel_id');
 
+        $unreadCounts = $channelIds->isEmpty()
+            ? collect()
+            : Message::query()
+                ->leftJoin('channel_read_state as crs', function ($join) use ($userId): void {
+                    $join->on('message.channel_id', '=', 'crs.channel_id')
+                        ->where('crs.user_id', '=', $userId);
+                })
+                ->whereIn('message.channel_id', $channelIds)
+                ->where(function ($query): void {
+                    $query->whereNull('crs.last_read_message_id')
+                        ->orWhereColumn('message.message_id', '>', 'crs.last_read_message_id');
+                })
+                ->groupBy('message.channel_id')
+                ->selectRaw('message.channel_id, COUNT(*) as unread_count')
+                ->pluck('unread_count', 'message.channel_id');
+
+        $this->channels = $channels
+            ->map(function (Channel $channel) use ($unreadCounts) {
                 return [
                     'channel_id'   => $channel->channel_id,
                     'channel_name' => $channel->channel_name,
                     'is_private'   => $channel->is_private,
-                    'unread'       => $unread,
+                    'unread'       => (int) ($unreadCounts[$channel->channel_id] ?? 0),
                     'url'          => route('channels.show', $channel),
                 ];
             })

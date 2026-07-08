@@ -43,7 +43,7 @@
                        class="text-xs px-2 py-0.5 rounded transition-colors"
                        style="color: var(--color-sidebar-text-muted);"
                        onmouseover="this.style.color='white'"
-                       onmouseout="this.style.color='var(--color-sidebar-text-muted)'">⚙ Settings</a>
+                       onmouseout="this.style.color='var(--color-sidebar-text-muted)'">Settings</a>
                     <button onclick="openAddMemberModal('{{ $ws->workspace_id }}', '{{ addslashes($ws->name) }}')"
                             class="text-xs px-2 py-0.5 rounded transition-colors"
                             style="color: var(--color-sidebar-text-muted); background: none; border: none; cursor: pointer;"
@@ -126,7 +126,7 @@
                                         Upload Photo
                                     </label>
                                     <input id="avatar" name="avatar" type="file" accept="image/*" class="hidden" onchange="previewAvatar(this)">
-                                    <p class="text-xs mt-1" style="color: var(--color-text-muted);">JPG, PNG or GIF · Max 2MB</p>
+                                    <p class="text-xs mt-1" style="color: var(--color-text-muted);">JPG, PNG or GIF - Max 2MB</p>
                                     @error('avatar')
                                     <p class="text-xs mt-1" style="color: #dc2626;">{{ $message }}</p>
                                     @enderror
@@ -274,7 +274,7 @@
                     Add Member to <span id="modal-ws-name" class="text-blue-600"></span>
                 </h3>
                 <button onclick="document.getElementById('profile-add-member-modal').classList.add('hidden')"
-                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">✕</button>
+                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">&times;</button>
             </div>
             <p class="text-sm mb-4" style="color: var(--color-text-secondary);">Enter the email address of the person to invite.</p>
             <form id="modal-add-member-form" method="POST" action="">

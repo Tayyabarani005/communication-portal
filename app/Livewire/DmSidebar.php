@@ -6,7 +6,6 @@ namespace App\Livewire;
 
 use App\Models\DirectMessage;
 use App\Models\DmConversation;
-use App\Models\DmReadState;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -27,27 +26,39 @@ class DmSidebar extends Component
     {
         $userId = auth()->user()->user_id;
 
-        $this->conversations = DmConversation::whereHas('dmParticipants', fn($q) => $q->where('user_id', $userId))
+        $conversations = DmConversation::whereHas('dmParticipants', fn($q) => $q->where('user_id', $userId))
             ->with(['dmParticipants.user'])
-            ->get()
-            ->map(function (DmConversation $conv) use ($userId) {
+            ->get();
+
+        $conversationIds = $conversations->pluck('conversation_id');
+
+        $unreadCounts = $conversationIds->isEmpty()
+            ? collect()
+            : DirectMessage::query()
+                ->leftJoin('dm_read_state as drs', function ($join) use ($userId): void {
+                    $join->on('direct_message.conversation_id', '=', 'drs.conversation_id')
+                        ->where('drs.user_id', '=', $userId);
+                })
+                ->whereIn('direct_message.conversation_id', $conversationIds)
+                ->where(function ($query): void {
+                    $query->whereNull('drs.last_read_message_id')
+                        ->orWhereColumn('direct_message.dm_message_id', '>', 'drs.last_read_message_id');
+                })
+                ->groupBy('direct_message.conversation_id')
+                ->selectRaw('direct_message.conversation_id, COUNT(*) as unread_count')
+                ->pluck('unread_count', 'direct_message.conversation_id');
+
+        $this->conversations = $conversations
+            ->map(function (DmConversation $conv) use ($userId, $unreadCounts) {
                 $otherUser = $conv->dmParticipants
                     ->firstWhere('user_id', '!=', $userId)?->user;
-
-                $readState = DmReadState::where('conversation_id', $conv->conversation_id)
-                    ->where('user_id', $userId)
-                    ->first();
-
-                $unread = DirectMessage::where('conversation_id', $conv->conversation_id)
-                    ->when($readState?->last_read_message_id, fn($q, $id) => $q->where('dm_message_id', '>', $id))
-                    ->count();
 
                 return [
                     'conversation_id' => $conv->conversation_id,
                     'other_username'  => $otherUser?->username ?? 'Unknown',
                     'other_avatar'    => $otherUser?->avatar_url,
                     'is_online'       => $otherUser ? $otherUser->isOnline() : false,
-                    'unread'          => $unread,
+                    'unread'          => (int) ($unreadCounts[$conv->conversation_id] ?? 0),
                     'url'             => route('dms.show', $conv),
                 ];
             })

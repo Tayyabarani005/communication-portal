@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class Notification extends Model
 {
@@ -25,7 +26,17 @@ class Notification extends Model
     protected static function booted(): void
     {
         static::created(function (Notification $notification) {
-            broadcast(new \App\Events\NotificationCreated($notification));
+            app()->terminating(function () use ($notification): void {
+                try {
+                    broadcast(new \App\Events\NotificationCreated($notification));
+                } catch (\Throwable $e) {
+                    Log::warning('Notification broadcast failed.', [
+                        'notification_id' => $notification->getKey(),
+                        'user_id' => $notification->user_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
         });
     }
 

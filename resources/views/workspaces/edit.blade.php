@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Edit Workspace — {{ $workspace->name }}</x-slot>
+    <x-slot name="title">Edit Workspace - {{ $workspace->name }}</x-slot>
 
     <div class="flex-1 flex items-center justify-center p-6" style="background: var(--color-bg-main);">
         <div class="w-full max-w-md rounded-2xl shadow-xl p-8" style="background: white;">
@@ -38,7 +38,7 @@
                     @if($workspace->avatar_url)
                     <div class="mb-2 flex items-center gap-2">
                         <img src="{{ $workspace->avatar_url }}" alt="Current avatar" class="w-10 h-10 rounded-lg object-cover">
-                        <span class="text-xs" style="color: var(--color-primary-400);">Current avatar — upload a new one to replace it</span>
+                        <span class="text-xs" style="color: var(--color-primary-400);">Current avatar - upload a new one to replace it</span>
                     </div>
                     @endif
                     <input id="avatar" name="avatar" type="file" accept="image/*"

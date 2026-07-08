@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="description" content="Synapse — Enterprise Communication & Collaboration platform for teams.">
+    <meta name="description" content="Synapse - Enterprise Communication & Collaboration platform for teams.">
 
     <!-- Reverb Broadcasting Meta Tags -->
     <meta name="reverb-key" content="{{ config('reverb.apps.apps.0.key') }}">
     <meta name="reverb-host" content="{{ config('reverb.apps.apps.0.options.host') ?? request()->getHost() }}">
     <meta name="reverb-port" content="{{ config('reverb.apps.apps.0.options.port') ?? (request()->secure() ? 443 : 80) }}">
     <meta name="reverb-scheme" content="{{ config('reverb.apps.apps.0.options.scheme') ?? (request()->secure() ? 'https' : 'http') }}">
-    <title>{{ config('app.name', 'Synapse') }} — {{ $title ?? 'Dashboard' }}</title>
+    <title>{{ config('app.name', 'Synapse') }} - {{ $title ?? 'Dashboard' }}</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,7 +42,7 @@
 
         {{-- Workspace Icons --}}
         @auth
-        @foreach(auth()->user()->workspaces as $ws)
+        @foreach($layoutWorkspaces as $ws)
             <a href="{{ route('workspaces.show', $ws) }}"
                title="{{ $ws->name }}"
                class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all hover:rounded-lg relative group"
@@ -71,21 +71,6 @@
             @auth
 
             {{-- DM --}}
-            @php
-                $userId = auth()->user()->user_id;
-                $conversations = \App\Models\DmConversation::whereHas('dmParticipants', fn($q) => $q->where('user_id', $userId))->get();
-                $totalUnreadDms = 0;
-                foreach ($conversations as $conv) {
-                    $readState = \App\Models\DmReadState::where('conversation_id', $conv->conversation_id)
-                        ->where('user_id', $userId)
-                        ->first();
-                    $unread = \App\Models\DirectMessage::where('conversation_id', $conv->conversation_id)
-                        ->when($readState?->last_read_message_id, fn($q, $id) => $q->where('dm_message_id', '>', $id))
-                        ->count();
-                    $totalUnreadDms += $unread;
-                }
-            @endphp
-
             <a href="{{ route('dms.index') }}" title="Direct Messages"
                class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors relative"
                style="color: rgba(255,255,255,0.35);"
@@ -94,21 +79,15 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
                 </svg>
-                @if($totalUnreadDms > 0)
+                @if($layoutTotalUnreadDms > 0)
                 <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
                       style="background: #ef4444; font-size: 0.55rem;">
-                    {{ $totalUnreadDms > 9 ? '9+' : $totalUnreadDms }}
+                    {{ $layoutTotalUnreadDms > 9 ? '9+' : $layoutTotalUnreadDms }}
                 </span>
                 @endif
             </a>
 
             {{-- Notifications Bell --}}
-            @php
-                $notifCount = \App\Models\Notification::where('user_id', auth()->user()->user_id)
-                    ->where('is_seen', false)
-                    ->count();
-            @endphp
-
             <div class="relative" id="notif-wrapper">
                 <button onclick="toggleNotifications()"
                         title="Notifications"
@@ -119,10 +98,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                     </svg>
-                    @if($notifCount > 0)
+                    @if($layoutNotifCount > 0)
                     <span id="notif-badge" class="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
                           style="background: #ef4444; font-size: 0.55rem;">
-                        {{ $notifCount > 9 ? '9+' : $notifCount }}
+                        {{ $layoutNotifCount > 9 ? '9+' : $layoutNotifCount }}
                     </span>
                     @endif
                 </button>
@@ -133,18 +112,10 @@
                      style="background: white; border: 1px solid var(--color-border); width: 320px; z-index: 100;">
                     <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-border);">
                         <span class="font-semibold text-sm" style="color: var(--color-text-primary);">Notifications</span>
-                        <button onclick="toggleNotifications()" style="background:none;border:none;cursor:pointer;color:var(--color-text-muted);">✕</button>
+                        <button onclick="toggleNotifications()" style="background:none;border:none;cursor:pointer;color:var(--color-text-muted);">&times;</button>
                     </div>
                     <div class="overflow-y-auto" style="max-height: 320px;">
-                        @php
-                            $userNotifications = \App\Models\Notification::where('user_id', auth()->user()->user_id)
-                                ->with(['sender', 'workspace', 'channel'])
-                                ->latest()
-                                ->limit(15)
-                                ->get();
-                        @endphp
-
-                        @if($userNotifications->isEmpty())
+                        @if($layoutUserNotifications->isEmpty())
                         <div class="px-4 py-8 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mx-auto mb-2" style="color: var(--color-text-muted);">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -153,7 +124,7 @@
                         </div>
                         @endif
 
-                        @foreach($userNotifications as $notif)
+                        @foreach($layoutUserNotifications as $notif)
                         <div class="px-4 py-3 border-b hover:bg-gray-50 transition-colors" style="border-color: var(--color-border); {{ !$notif->is_seen ? 'background: #f0f9ff;' : '' }}">
                             <div class="flex items-start gap-3">
                                 @if($notif->type === 'join_request' || $notif->type === 'workspace_invite')
@@ -164,12 +135,12 @@
                                 @elseif($notif->type === 'join_accepted' || $notif->type === 'workspace_invite_accepted')
                                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white"
                                          style="background: #22c55e; font-size: 0.8rem; font-weight: bold;">
-                                        ✓
+                                        &check;
                                     </div>
                                 @elseif($notif->type === 'join_rejected' || $notif->type === 'workspace_invite_rejected')
                                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white"
                                          style="background: #ef4444; font-size: 0.8rem; font-weight: bold;">
-                                        ✕
+                                        &times;
                                     </div>
                                 @else
                                     <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -186,10 +157,7 @@
 
                                     @if($notif->type === 'join_request')
                                         @php
-                                            $joinReq = \App\Models\WorkspaceJoinRequest::where('workspace_id', $notif->workspace_id)
-                                                ->where('user_id', $notif->sender_id)
-                                                ->where('status', 'pending')
-                                                ->first();
+                                            $joinReq = $layoutJoinRequests->get($notif->workspace_id . ':' . $notif->sender_id);
                                         @endphp
                                         @if($joinReq)
                                         <div class="flex gap-2 mt-2">
@@ -207,10 +175,7 @@
 
                                     @if($notif->type === 'workspace_invite')
                                         @php
-                                            $joinReq = \App\Models\WorkspaceJoinRequest::where('workspace_id', $notif->workspace_id)
-                                                ->where('user_id', auth()->user()->user_id)
-                                                ->where('status', 'pending')
-                                                ->first();
+                                            $joinReq = $layoutInviteRequests->get($notif->workspace_id);
                                         @endphp
                                         @if($joinReq)
                                         <div class="flex gap-2 mt-2">
@@ -347,9 +312,9 @@ if (window.Echo) {
                 if (e.type === 'join_request' || e.type === 'workspace_invite') {
                     iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style="background: var(--color-accent-100); color: var(--color-accent-700);">${senderInitial}</div>`;
                 } else if (e.type === 'join_accepted' || e.type === 'workspace_invite_accepted') {
-                    iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white" style="background: #22c55e; font-size: 0.8rem; font-weight: bold;">✓</div>`;
+                    iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white" style="background: #22c55e; font-size: 0.8rem; font-weight: bold;">&check;</div>`;
                 } else if (e.type === 'join_rejected' || e.type === 'workspace_invite_rejected') {
-                    iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white" style="background: #ef4444; font-size: 0.8rem; font-weight: bold;">✕</div>`;
+                    iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white" style="background: #ef4444; font-size: 0.8rem; font-weight: bold;">&times;</div>`;
                 } else {
                     iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style="background: var(--color-primary-100); color: var(--color-primary-700);">@</div>`;
                 }

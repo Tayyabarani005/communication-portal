@@ -29,7 +29,7 @@
         <div class="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style="background: white; border-color: var(--color-border);">
             <div class="flex items-center gap-2">
                 <span class="text-lg font-semibold" style="color: var(--color-primary-900);">
-                    {{ $channel->is_private ? '🔒' : '#' }} {{ $channel->channel_name }}
+                    {{ $channel->is_private ? 'Private' : '#' }} {{ $channel->channel_name }}
                 </span>
                 @if($channel->is_private)
                 <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--color-primary-100); color: var(--color-primary-600);">Private</span>

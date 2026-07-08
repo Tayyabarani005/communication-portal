@@ -17,7 +17,7 @@ Route::get('/', function () {
         : redirect()->route('login');
 });
 
-// Removed 'verified' middleware — internal portal doesn't require email verification
+// Removed 'verified' middleware - internal portal doesn't require email verification
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         return redirect()->route('workspaces.index');

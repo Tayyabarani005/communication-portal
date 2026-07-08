@@ -1,4 +1,4 @@
-<div class="flex-1 overflow-y-auto p-2" x-data x-on:scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight">
+<div class="flex-1 overflow-y-auto p-2" wire:poll.10s="loadConversations" x-data x-on:scroll-to-bottom.window="$el.scrollTop = $el.scrollHeight">
     @forelse($conversations as $conv)
     <a href="{{ $conv['url'] }}"
        class="flex items-center gap-2 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors {{ $activeConversationId == $conv['conversation_id'] ? 'font-semibold' : '' }}"

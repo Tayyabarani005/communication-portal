@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Create Channel — {{ $workspace->name }}</x-slot>
+    <x-slot name="title">Create Channel - {{ $workspace->name }}</x-slot>
 
     {{-- ══ Left Sidebar ══ --}}
     <div class="flex flex-col w-60 flex-shrink-0 border-r overflow-y-auto" style="background: var(--color-sidebar-bg); border-color: var(--color-primary-800);">

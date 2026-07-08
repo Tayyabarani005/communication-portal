@@ -9,9 +9,11 @@ use App\Models\Workspace;
 use App\Models\WorkspaceMember;
 use App\Models\WorkspaceJoinRequest;
 use App\Models\Notification;
+use App\Services\CloudinaryImageService;
 use App\Enums\WorkspaceRole;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class WorkspaceController extends Controller
@@ -25,12 +27,12 @@ class WorkspaceController extends Controller
 
         $myWorkspaces = $request->user()
             ->workspaces()
-            ->with('workspaceMembers')
+            ->withCount('workspaceMembers')
             ->get();
 
         $otherWorkspaces = Workspace::whereDoesntHave('workspaceMembers', function ($q) use ($userId) {
             $q->where('user_id', $userId);
-        })->with('workspaceMembers')->get();
+        })->withCount('workspaceMembers')->get();
 
         // Map existing join request statuses for other workspaces
         $pendingRequestIds = WorkspaceJoinRequest::where('user_id', $userId)
@@ -56,8 +58,15 @@ class WorkspaceController extends Controller
 
         $avatarUrl = null;
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('workspace-avatars', 'public');
-            $avatarUrl = asset('storage/' . $path);
+            try {
+                $avatarUrl = $this->storeWorkspaceAvatar($request);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return back()
+                    ->withInput()
+                    ->withErrors(['avatar' => 'Image upload failed. Please check the Cloudinary configuration and try again.']);
+            }
         }
 
         $workspace = Workspace::create([
@@ -81,36 +90,24 @@ class WorkspaceController extends Controller
     {
         $userId = auth()->user()->user_id;
 
-        $isMember = WorkspaceMember::where('workspace_id', $workspace->workspace_id)
+        $member = WorkspaceMember::where('workspace_id', $workspace->workspace_id)
             ->where('user_id', $userId)
-            ->exists();
+            ->first(['member_id', 'role']);
 
-        $isAdmin = WorkspaceMember::where('workspace_id', $workspace->workspace_id)
-            ->where('user_id', $userId)
-            ->where('role', WorkspaceRole::ADMIN)
-            ->exists();
+        $isMember = (bool) $member;
+        $isAdmin = $member?->role === WorkspaceRole::ADMIN;
 
-        // Fix SQL ambiguity: qualify the user_id column explicitly
-        // Also filter out private channels the user is NOT a member of
-        $channels = $workspace->channels()
-            ->with(['users' => fn($q) => $q->where('channel_user.user_id', $userId)])
-            ->get()
-            ->filter(function ($channel) use ($userId) {
-                // Show public channels to everyone; show private channels only to members
-                if (!$channel->is_private) {
-                    return true;
-                }
-                return $channel->users->contains(fn($u) => $u->user_id === $userId);
-            })
-            ->values();
+        $channels = $this->visibleChannelsFor($workspace, $userId);
 
-        $members = $workspace->workspaceMembers()->with('user')->get();
+        $members = $workspace->workspaceMembers()
+            ->with('user:user_id,username,name,email,avatar_url')
+            ->get();
 
         // Pending join requests (for admin display)
         $joinRequests = $isAdmin
             ? WorkspaceJoinRequest::where('workspace_id', $workspace->workspace_id)
                 ->where('status', 'pending')
-                ->with('user')
+                ->with('user:user_id,username,email')
                 ->get()
             : collect();
 
@@ -188,7 +185,7 @@ class WorkspaceController extends Controller
         ]);
 
         return redirect()->route('workspaces.show', $workspace)
-            ->with('success', "Request approved — {$joinRequest->user->username} has joined the workspace.");
+            ->with('success', "Request approved - {$joinRequest->user->username} has joined the workspace.");
     }
 
     /**
@@ -271,14 +268,10 @@ class WorkspaceController extends Controller
 
         // Pass channels and members so sidebar remains intact
         $userId = auth()->user()->user_id;
-        $channels = $workspace->channels()
-            ->with(['users' => fn($q) => $q->where('channel_user.user_id', $userId)])
-            ->get()
-            ->filter(function ($channel) use ($userId) {
-                if (!$channel->is_private) return true;
-                return $channel->users->contains(fn($u) => $u->user_id === $userId);
-            })->values();
-        $members = $workspace->workspaceMembers()->with('user')->get();
+        $channels = $this->visibleChannelsFor($workspace, $userId);
+        $members = $workspace->workspaceMembers()
+            ->with('user:user_id,username,name,email,avatar_url')
+            ->get();
 
         return view('workspaces.edit', compact('workspace', 'channels', 'members'));
     }
@@ -299,8 +292,15 @@ class WorkspaceController extends Controller
         ];
 
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('workspace-avatars', 'public');
-            $data['avatar_url'] = asset('storage/' . $path);
+            try {
+                $data['avatar_url'] = $this->storeWorkspaceAvatar($request);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return back()
+                    ->withInput()
+                    ->withErrors(['avatar' => 'Image upload failed. Please check the Cloudinary configuration and try again.']);
+            }
         }
 
         $workspace->update($data);
@@ -316,6 +316,33 @@ class WorkspaceController extends Controller
 
         return redirect()->route('workspaces.index')
             ->with('success', 'Workspace deleted.');
+    }
+
+    private function storeWorkspaceAvatar(Request $request): string
+    {
+        $cloudinary = app(CloudinaryImageService::class);
+
+        if ($cloudinary->isConfigured()) {
+            return $cloudinary->upload($request->file('avatar'), 'workspace-avatars');
+        }
+
+        $path = $request->file('avatar')->store('workspace-avatars', 'public');
+
+        return Storage::disk('public')->url($path);
+    }
+
+    private function visibleChannelsFor(Workspace $workspace, int $userId)
+    {
+        return $workspace->channels()
+            ->where(function ($query) use ($userId): void {
+                $query->where('is_private', false)
+                    ->orWhereHas('users', fn ($userQuery) => $userQuery->where('channel_user.user_id', $userId));
+            })
+            ->withExists([
+                'users as in_channel' => fn ($query) => $query->where('channel_user.user_id', $userId),
+            ])
+            ->select('channel_id', 'workspace_id', 'channel_name', 'is_private')
+            ->get();
     }
 
     /**

@@ -87,9 +87,9 @@ class User extends Authenticatable
             $user->createdTasks()->delete();
             $user->assignedTasks()->update(['assigned_to' => null]);
             
-            \DB::table('channel_read_states')->where('user_id', $user->user_id)->delete();
-            \DB::table('dm_read_states')->where('user_id', $user->user_id)->delete();
-            \DB::table('pinned_messages')->where('pinned_by', $user->user_id)->delete();
+            \DB::table('channel_read_state')->where('user_id', $user->user_id)->delete();
+            \DB::table('dm_read_state')->where('user_id', $user->user_id)->delete();
+            \DB::table('pinned_message')->where('pinned_by', $user->user_id)->delete();
             \DB::table('workspace_join_requests')->where('user_id', $user->user_id)->delete();
             \DB::table('notifications')
                 ->where('user_id', $user->user_id)

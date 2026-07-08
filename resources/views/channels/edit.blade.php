@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Edit Channel — #{{ $channel->channel_name }}</x-slot>
+    <x-slot name="title">Edit Channel - #{{ $channel->channel_name }}</x-slot>
 
     <div class="flex-1 flex items-center justify-center p-8" style="background: var(--color-bg-main);">
         <div class="w-full max-w-lg rounded-2xl shadow-lg border p-8" style="background: white; border-color: var(--color-border);">
@@ -49,7 +49,7 @@
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="radio" name="is_private" value="1" class="rounded" {{ old('is_private', $channel->is_private ? '1' : '0') == '1' ? 'checked' : '' }}>
-                            <span class="text-sm" style="color: var(--color-primary-700);">🔒 Private</span>
+                            <span class="text-sm" style="color: var(--color-primary-700);">Private</span>
                         </label>
                     </div>
                 </div>

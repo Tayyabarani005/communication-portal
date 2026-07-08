@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire;
 
 use App\Events\DirectMessageSent;
+use App\Events\NotificationCreated;
 use App\Events\UserTyping;
 use App\Models\DirectMessage;
 use App\Models\DmConversation;
@@ -12,6 +13,8 @@ use App\Models\DmReadState;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -30,6 +33,8 @@ class DirectMessageWindow extends Component
 
     /** @var array<int, array<string, mixed>> */
     public array $messages = [];
+    public ?int $latestMessageId = null;
+    public int $lastFullRefreshAt = 0;
 
     public function mount(DmConversation $conversation): void
     {
@@ -42,32 +47,62 @@ class DirectMessageWindow extends Component
     {
         $this->messages = DirectMessage::where('conversation_id', $this->conversation->conversation_id)
             ->whereNull('parent_id')
-            ->with(['sender', 'replies.sender', 'files'])
+            ->with([
+                'sender:user_id,username,avatar_url',
+                'replies' => fn ($query) => $query
+                    ->select('dm_message_id', 'conversation_id', 'sender_id', 'parent_id', 'msg_body', 'msg_type', 'sent_at')
+                    ->oldest('sent_at')
+                    ->oldest('dm_message_id'),
+                'replies.sender:user_id,username,avatar_url',
+                'files:file_id,attachable_id,attachable_type,file_name,file_path,file_size,mime_type',
+            ])
+            ->select('dm_message_id', 'conversation_id', 'sender_id', 'parent_id', 'msg_body', 'msg_type', 'sent_at')
             ->latest('sent_at')
+            ->latest('dm_message_id')
             ->limit(50)
             ->get()
             ->reverse()
             ->values()
             ->toArray();
+
+        $latestMessageId = DirectMessage::where('conversation_id', $this->conversation->conversation_id)
+            ->latest('sent_at')
+            ->latest('dm_message_id')
+            ->value('dm_message_id');
+        $this->latestMessageId = $latestMessageId ? (int) $latestMessageId : null;
+        $this->lastFullRefreshAt = time();
     }
 
     private function markRead(): void
     {
-        $last = DirectMessage::where('conversation_id', $this->conversation->conversation_id)
+        $lastMessageId = $this->latestMessageId ?? DirectMessage::where('conversation_id', $this->conversation->conversation_id)
             ->latest('sent_at')
-            ->first();
+            ->latest('dm_message_id')
+            ->value('dm_message_id');
 
-        if ($last) {
-            DmReadState::updateOrCreate(
-                ['conversation_id' => $this->conversation->conversation_id, 'user_id' => auth()->id()],
-                ['last_read_message_id' => $last->dm_message_id, 'last_read_at' => now()]
-            );
+        if (!$lastMessageId) {
+            return;
         }
+
+        $readState = DmReadState::firstOrNew([
+            'conversation_id' => $this->conversation->conversation_id,
+            'user_id' => auth()->user()->user_id,
+        ]);
+
+        if ((int) $readState->last_read_message_id >= (int) $lastMessageId) {
+            return;
+        }
+
+        $readState->last_read_message_id = (int) $lastMessageId;
+        $readState->last_read_at = now();
+        $readState->save();
     }
 
     public function send(): void
     {
         $this->authorize('view', $this->conversation);
+        $user = auth()->user();
+
         $this->validate([
             'body' => [empty($this->attachment) ? 'required' : 'nullable', 'string', 'max:4000'],
             'attachment' => ['nullable', 'file', 'max:10240'],
@@ -75,7 +110,7 @@ class DirectMessageWindow extends Component
 
         $message = DirectMessage::create([
             'conversation_id' => $this->conversation->conversation_id,
-            'sender_id'       => auth()->user()->user_id,
+            'sender_id'       => $user->user_id,
             'parent_id'       => $this->parentId,
             'msg_body'        => $this->body ?? '',
             'msg_type'        => $this->attachment ? 'file' : 'text',
@@ -99,10 +134,25 @@ class DirectMessageWindow extends Component
         // Parse @mentions
         $this->parseMentions($this->body ?? '', $message);
 
-        $message->load(['sender', 'files']);
-        broadcast(new DirectMessageSent($message))->toOthers();
+        $message->load([
+            'sender:user_id,username,avatar_url',
+            'files:file_id,attachable_id,attachable_type,file_name,file_path,file_size,mime_type',
+        ]);
+
+        app()->terminating(function () use ($message): void {
+            try {
+                broadcast(new DirectMessageSent($message))->toOthers();
+            } catch (\Throwable $e) {
+                Log::warning('Direct message broadcast failed.', [
+                    'dm_message_id' => $message->dm_message_id,
+                    'conversation_id' => $this->conversation->conversation_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
 
         $this->messages[] = $message->toArray();
+        $this->latestMessageId = (int) $message->dm_message_id;
         $this->body = '';
         $this->parentId = null;
         $this->replyPreview = '';
@@ -112,21 +162,49 @@ class DirectMessageWindow extends Component
 
     private function parseMentions(string $body, DirectMessage $message): void
     {
-        if (preg_match_all('/@(\w+)/', $body, $matches)) {
-            $usernames = array_unique($matches[1]);
-            $users = User::whereIn('username', $usernames)
-                ->where('user_id', '!=', auth()->user()->user_id)
-                ->get();
-
-            foreach ($users as $user) {
-                Notification::create([
-                    'user_id'    => $user->user_id,
-                    'sender_id'  => auth()->user()->user_id,
-                    'type'       => 'tag',
-                    'text'       => auth()->user()->username . ' mentioned you in a direct message',
-                ]);
-            }
+        if (!preg_match_all('/@(\w+)/', $body, $matches)) {
+            return;
         }
+
+        $authUser = auth()->user();
+        $usernames = array_unique($matches[1]);
+        $users = User::whereIn('username', $usernames)
+            ->where('user_id', '!=', $authUser->user_id)
+            ->get(['user_id']);
+
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        $notifications = $users
+            ->map(function (User $user) use ($authUser): Notification {
+                $notification = new Notification([
+                    'user_id' => $user->user_id,
+                    'sender_id' => $authUser->user_id,
+                    'type' => 'tag',
+                    'text' => $authUser->username . ' mentioned you in a direct message',
+                ]);
+
+                $notification->saveQuietly();
+                $notification->setRelation('sender', $authUser);
+
+                return $notification;
+            })
+            ->all();
+
+        app()->terminating(function () use ($notifications): void {
+            foreach ($notifications as $notification) {
+                try {
+                    broadcast(new NotificationCreated($notification));
+                } catch (\Throwable $e) {
+                    Log::warning('Mention notification broadcast failed.', [
+                        'notification_id' => $notification->getKey(),
+                        'user_id' => $notification->user_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        });
     }
 
     public function setReply(int $messageId, string $preview): void
@@ -144,30 +222,43 @@ class DirectMessageWindow extends Component
     public function broadcastTyping(): void
     {
         $userId = auth()->user()->user_id;
-        \Illuminate\Support\Facades\Cache::put(
+        Cache::put(
             'typing-dm-' . $this->conversation->conversation_id . '-' . $userId,
             auth()->user()->username,
             now()->addSeconds(6)
         );
 
-        try {
-            broadcast(new UserTyping(
-                $userId,
-                auth()->user()->username,
-                'dm',
-                $this->conversation->conversation_id,
-            ))->toOthers();
-        } catch (\Exception $e) {}
+        app()->terminating(function () use ($userId): void {
+            try {
+                broadcast(new UserTyping(
+                    $userId,
+                    auth()->user()->username,
+                    'dm',
+                    $this->conversation->conversation_id,
+                ))->toOthers();
+            } catch (\Throwable $e) {
+                Log::debug('Direct message typing broadcast failed.', [
+                    'conversation_id' => $this->conversation->conversation_id,
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     public function checkTyping(): void
     {
         $userId = auth()->user()->user_id;
-        $participants = $this->conversation->dmParticipants()->pluck('user_id');
+        $conversationId = $this->conversation->conversation_id;
+        $participants = Cache::remember(
+            "dm-participant-ids-{$conversationId}",
+            now()->addMinute(),
+            fn () => $this->conversation->dmParticipants()->pluck('user_id')->all()
+        );
         $typingNames = [];
         foreach ($participants as $participantId) {
             if ((int) $participantId === $userId) continue;
-            $name = \Illuminate\Support\Facades\Cache::get('typing-dm-' . $this->conversation->conversation_id . '-' . $participantId);
+            $name = Cache::get('typing-dm-' . $this->conversation->conversation_id . '-' . $participantId);
             if ($name) {
                 $typingNames[] = $name;
             }
@@ -184,7 +275,15 @@ class DirectMessageWindow extends Component
 
     public function refreshMessages(): void
     {
-        $this->loadMessages();
+        $newestMessageId = DirectMessage::where('conversation_id', $this->conversation->conversation_id)
+            ->latest('sent_at')
+            ->latest('dm_message_id')
+            ->value('dm_message_id');
+
+        if ((int) $newestMessageId !== (int) $this->latestMessageId || time() - $this->lastFullRefreshAt >= 30) {
+            $this->loadMessages();
+        }
+
         $this->checkTyping();
     }
 
@@ -192,6 +291,7 @@ class DirectMessageWindow extends Component
     public function onMessageSent(array $data): void
     {
         $this->messages[] = $data;
+        $this->latestMessageId = (int) ($data['dm_message_id'] ?? $this->latestMessageId);
         $this->markRead();
         $this->dispatch('scroll-to-bottom');
     }

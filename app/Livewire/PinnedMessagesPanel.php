@@ -14,6 +14,7 @@ class PinnedMessagesPanel extends Component
 {
     public Channel $channel;
     public bool $open = false;
+    public int $pinCount = 0;
 
     /** @var array<int, array<string, mixed>> */
     public array $pins = [];
@@ -21,7 +22,7 @@ class PinnedMessagesPanel extends Component
     public function mount(Channel $channel): void
     {
         $this->channel = $channel;
-        $this->loadPins(); // Load on mount so count badge is visible immediately
+        $this->loadPinCount();
     }
 
     public function toggle(): void
@@ -32,14 +33,28 @@ class PinnedMessagesPanel extends Component
         }
     }
 
+    public function loadPinCount(): void
+    {
+        $this->pinCount = PinnedMessage::where('pinnable_type', Message::class)
+            ->whereHas('pinnable', fn($q) => $q->where('channel_id', $this->channel->channel_id))
+            ->count();
+    }
+
     public function loadPins(): void
     {
         $this->pins = PinnedMessage::where('pinnable_type', Message::class)
             ->whereHas('pinnable', fn($q) => $q->where('channel_id', $this->channel->channel_id))
-            ->with(['pinnable.sender', 'pinnedBy'])
+            ->with([
+                'pinnable' => fn ($query) => $query
+                    ->select('message_id', 'channel_id', 'sender_id', 'msg_body', 'sent_at'),
+                'pinnable.sender:user_id,username',
+                'pinnedBy:user_id,username',
+            ])
             ->latest()
             ->get()
             ->toArray();
+
+        $this->pinCount = count($this->pins);
     }
 
     public function unpin(int $pinId): void

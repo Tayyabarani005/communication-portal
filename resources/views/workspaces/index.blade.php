@@ -15,7 +15,7 @@
                 </div>
                 <div class="min-w-0">
                     <p class="text-sm font-medium truncate" style="color: inherit;">{{ $workspace->name }}</p>
-                    <p class="text-xs" style="color: var(--color-sidebar-text-muted);">{{ $workspace->workspaceMembers->count() }} members</p>
+                    <p class="text-xs" style="color: var(--color-sidebar-text-muted);">{{ $workspace->workspace_members_count }} members</p>
                 </div>
             </a>
             @empty
@@ -37,7 +37,7 @@
         <div class="page-header">
             <div>
                 <h1>Welcome back, {{ auth()->user()->username }} 👋</h1>
-                <p>Your team communication hub — channels, messages, and tasks in one place.</p>
+                <p>Your team communication hub - channels, messages, and tasks in one place.</p>
             </div>
             <a href="{{ route('workspaces.create') }}" class="btn btn-primary btn-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
@@ -94,7 +94,7 @@
                                 @if($workspace->description)
                                 <p class="text-xs mt-1 line-clamp-2" style="color: var(--color-text-secondary);">{{ $workspace->description }}</p>
                                 @endif
-                                <p class="text-xs mt-2 font-medium" style="color: var(--color-text-muted);">{{ $workspace->workspaceMembers->count() }} members</p>
+                                <p class="text-xs mt-2 font-medium" style="color: var(--color-text-muted);">{{ $workspace->workspace_members_count }} members</p>
                             </div>
                         </div>
                     </a>
@@ -134,7 +134,7 @@
                                 @if($workspace->description)
                                 <p class="text-xs mt-1 line-clamp-2" style="color: var(--color-text-secondary);">{{ $workspace->description }}</p>
                                 @endif
-                                <p class="text-xs mt-2 font-medium" style="color: var(--color-text-muted);">{{ $workspace->workspaceMembers->count() }} members</p>
+                                <p class="text-xs mt-2 font-medium" style="color: var(--color-text-muted);">{{ $workspace->workspace_members_count }} members</p>
                             </div>
                         </div>
                         @if($hasPendingRequest)

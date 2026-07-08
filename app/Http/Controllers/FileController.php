@@ -81,9 +81,23 @@ class FileController extends Controller
             abort(404, 'File not found.');
         }
 
-        return response()->download(
-            Storage::disk('public')->path($file->file_path),
-            $file->file_name
-        );
+        $disk = Storage::disk('public');
+
+        return response()->streamDownload(function () use ($disk, $file): void {
+            $stream = $disk->readStream($file->file_path);
+
+            if ($stream === false) {
+                return;
+            }
+
+            fpassthru($stream);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, $file->file_name, array_filter([
+            'Content-Type' => $file->mime_type ?: 'application/octet-stream',
+            'Content-Length' => $file->file_size ? (string) $file->file_size : null,
+        ]));
     }
 }

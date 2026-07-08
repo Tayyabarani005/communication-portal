@@ -23,11 +23,11 @@
             </div>
 
             @foreach($channels as $channel)
-            @php $inChannel = $channel->users->isNotEmpty(); @endphp
+            @php $inChannel = (bool) ($channel->in_channel ?? $channel->users->isNotEmpty()); @endphp
             <div class="flex items-center group">
                 <a href="{{ $inChannel ? route('channels.show', $channel) : '#' }}"
                    class="nav-item flex-1 {{ !$inChannel ? 'opacity-50' : '' }}">
-                    <span class="text-xs">{{ $channel->is_private ? '🔒' : '#' }}</span>
+                    <span class="text-xs">{{ $channel->is_private ? 'Private' : '#' }}</span>
                     <span class="truncate">{{ $channel->channel_name }}</span>
                 </a>
                 @if(!$inChannel && !$channel->is_private)
@@ -109,7 +109,7 @@
                 @if(!$isMember)
                 @if($myRequest && $myRequest->status === 'pending')
                 <span class="btn btn-sm" style="background: var(--color-warning-bg); color: var(--color-warning-text); border: 1px solid var(--color-warning-border); cursor: default;">
-                    ⏳ Request Pending
+                    Request Pending
                 </span>
                 @else
                 <form method="POST" action="{{ route('workspaces.join', $workspace) }}">
@@ -149,7 +149,7 @@
                             <div class="avatar-initials w-9 h-9 text-sm flex-shrink-0">{{ strtoupper(substr($req->user->username, 0, 1)) }}</div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-semibold" style="color: var(--color-text-primary);">{{ $req->user->username }}</p>
-                                <p class="text-xs" style="color: var(--color-text-muted);">{{ $req->user->email }} · {{ $req->created_at->diffForHumans() }}</p>
+                                <p class="text-xs" style="color: var(--color-text-muted);">{{ $req->user->email }} &middot; {{ $req->created_at->diffForHumans() }}</p>
                             </div>
                             <div class="flex gap-2 flex-shrink-0">
                                 <form method="POST" action="{{ route('workspaces.join-requests.approve', [$workspace, $req]) }}">
@@ -180,11 +180,11 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         @forelse($channels as $channel)
-                        @php $inChannel = $channel->users->isNotEmpty(); @endphp
+                        @php $inChannel = (bool) ($channel->in_channel ?? $channel->users->isNotEmpty()); @endphp
                         <div class="card p-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm" style="color: var(--color-text-muted);">{{ $channel->is_private ? '🔒' : '#' }}</span>
+                                    <span class="text-sm" style="color: var(--color-text-muted);">{{ $channel->is_private ? 'Private' : '#' }}</span>
                                     <h3 class="font-semibold text-sm" style="color: var(--color-text-primary);">{{ $channel->channel_name }}</h3>
                                 </div>
                                 @if($inChannel)
@@ -276,7 +276,7 @@
                 <p class="text-sm mb-6" style="color: var(--color-text-secondary);">Join this workspace to access channels and collaborate with the team.</p>
                 @if($myRequest && $myRequest->status === 'pending')
                 <div class="alert-info px-6 py-3 text-sm">
-                    ⏳ Your join request is pending admin approval.
+                    Your join request is pending admin approval.
                 </div>
                 @elseif($myRequest && $myRequest->status === 'rejected')
                 <div class="alert-error px-6 py-3 text-sm">
@@ -306,7 +306,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-base" style="color: var(--color-text-primary);">Add Member</h3>
                 <button onclick="document.getElementById('add-member-modal').classList.add('hidden')"
-                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">✕</button>
+                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">&times;</button>
             </div>
             <p class="text-sm mb-4" style="color: var(--color-text-secondary);">Enter the email address of the person you want to invite.</p>
             <form method="POST" action="{{ route('workspaces.invite', $workspace) }}">

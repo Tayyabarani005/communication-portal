@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Edit Task — {{ $task->title }}</x-slot>
+    <x-slot name="title">Edit Task - {{ $task->title }}</x-slot>
 
     <div class="flex-1 flex items-center justify-center p-8" style="background: var(--color-bg-main);">
         <div class="w-full max-w-lg rounded-2xl shadow-lg border p-8" style="background: white; border-color: var(--color-border);">

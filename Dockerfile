@@ -17,6 +17,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && npm install \
     && npm run build
 
+RUN php artisan storage:link \
+    && chmod -R 775 storage bootstrap/cache
+
 EXPOSE 10000
 
 CMD php artisan serve --host=0.0.0.0 --port=$PORT

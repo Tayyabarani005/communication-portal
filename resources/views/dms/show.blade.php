@@ -57,7 +57,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-sm" style="color: white;">New Direct Message</h3>
                 <button onclick="document.getElementById('new-dm-modal').classList.add('hidden')"
-                        style="background: none; border: none; cursor: pointer; color: var(--color-primary-400);">✕</button>
+                        style="background: none; border: none; cursor: pointer; color: var(--color-primary-400);">&times;</button>
             </div>
             <p class="text-xs mb-4" style="color: var(--color-primary-500);">Start a conversation with a team member.</p>
             <form method="POST" id="new-dm-form" action="#">

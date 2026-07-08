@@ -19,7 +19,9 @@ class UpdateUserLastSeen
     {
         if (Auth::check()) {
             $userId = Auth::user()->user_id;
-            Cache::put('user-online-' . $userId, true, now()->addMinutes(5));
+            if (Cache::add('user-online-throttle-' . $userId, true, now()->addSeconds(30))) {
+                Cache::put('user-online-' . $userId, true, now()->addMinutes(5));
+            }
         }
 
         return $next($request);

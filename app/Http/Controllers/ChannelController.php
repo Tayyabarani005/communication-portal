@@ -19,19 +19,11 @@ class ChannelController extends Controller
         $this->authorize('update', $workspace);
 
         // Load workspace members so we can select who to add to private channels
-        $members = $workspace->workspaceMembers()->with('user')->get();
+        $members = $workspace->workspaceMembers()
+            ->with('user:user_id,username')
+            ->get();
 
-        // Also load channels for sidebar context
-        $userId = auth()->user()->user_id;
-        $channels = $workspace->channels()
-            ->with(['users' => fn($q) => $q->where('channel_user.user_id', $userId)])
-            ->get()
-            ->filter(function ($channel) use ($userId) {
-                if (!$channel->is_private) return true;
-                return $channel->users->contains(fn($u) => $u->user_id === $userId);
-            })->values();
-
-        return view('channels.create', compact('workspace', 'members', 'channels'));
+        return view('channels.create', compact('workspace', 'members'));
     }
 
     public function store(Request $request, Workspace $workspace): RedirectResponse
@@ -60,12 +52,22 @@ class ChannelController extends Controller
 
         // For private channels, add selected members
         if (($validated['is_private'] ?? false) && !empty($validated['members'])) {
-            foreach ($validated['members'] as $memberId) {
-                if ((int) $memberId === $request->user()->user_id) continue; // skip creator
-                ChannelUser::firstOrCreate([
+            $now = now();
+            $memberRows = collect($validated['members'])
+                ->map(fn ($memberId) => (int) $memberId)
+                ->reject(fn (int $memberId) => $memberId === $request->user()->user_id)
+                ->unique()
+                ->map(fn (int $memberId): array => [
                     'channel_id' => $channel->channel_id,
                     'user_id'    => $memberId,
-                ], ['joined_at' => now()]);
+                    'joined_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+                ->values();
+
+            if ($memberRows->isNotEmpty()) {
+                ChannelUser::insertOrIgnore($memberRows->all());
             }
         }
 

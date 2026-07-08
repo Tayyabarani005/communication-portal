@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Workspace;
 use App\Models\WorkspaceMember;
+use App\Services\CloudinaryImageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -62,8 +63,21 @@ class ProfileController extends Controller
                 $oldPath = str_replace('/storage/', '', $user->avatar_url);
                 Storage::disk('public')->delete($oldPath);
             }
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $validated['avatar_url'] = '/storage/' . $path;
+            try {
+                $cloudinary = app(CloudinaryImageService::class);
+                if ($cloudinary->isConfigured()) {
+                    $validated['avatar_url'] = $cloudinary->upload($request->file('avatar'), 'avatars');
+                } else {
+                    $path = $request->file('avatar')->store('avatars', 'public');
+                    $validated['avatar_url'] = Storage::disk('public')->url($path);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+
+                return back()
+                    ->withInput()
+                    ->withErrors(['avatar' => 'Image upload failed. Please check the Cloudinary configuration and try again.']);
+            }
         }
 
         // Remove the 'avatar' key since it's not a db column

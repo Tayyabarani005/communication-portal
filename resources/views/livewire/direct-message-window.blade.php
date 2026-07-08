@@ -1,5 +1,5 @@
 {{-- DM Window Livewire Component --}}
-<div class="flex flex-col flex-1 min-h-0" wire:poll.2s="refreshMessages">
+<div class="flex flex-col flex-1 min-h-0" wire:poll.visible.4s="refreshMessages">
     {{-- Messages list --}}
     <div id="dm-messages-container"
          class="flex-1 overflow-y-auto p-4 space-y-1"
@@ -103,8 +103,8 @@
     @if($parentId)
     <div class="mx-4 px-3 py-2 rounded-t-lg border-b-0 border text-xs flex items-center justify-between"
          style="background: var(--color-pin-bg); border-color: var(--color-pin-border); color: var(--color-pin-text);">
-        <span>↩ Replying to: <em>{{ $replyPreview }}</em></span>
-        <button wire:click="clearReply" class="ml-2 font-bold hover:opacity-60">✕</button>
+        <span>Replying to: <em>{{ $replyPreview }}</em></span>
+        <button wire:click="clearReply" class="ml-2 font-bold hover:opacity-60">&times;</button>
     </div>
     @endif
 
@@ -112,7 +112,7 @@
     <div class="p-4 border-t flex-shrink-0 relative" style="background: white; border-color: var(--color-border);"
          x-data="{
              showEmoji: false,
-             emojis: ['😀','😂','😍','👍','👎','🎉','🔥','❤️','💯','😢','😮','🤔','👀','🚀','✅','❌','⭐','💡','📎','🎯'],
+             emojis: ['\u{1F600}','\u{1F602}','\u{1F60D}','\u{1F44D}','\u{1F44E}','\u{1F389}','\u{1F525}','\u{2764}\u{FE0F}','\u{1F4AF}','\u{1F622}','\u{1F62E}','\u{1F914}','\u{1F440}','\u{1F680}','\u{2705}','\u{274C}','\u{2B50}','\u{1F4A1}','\u{1F4CE}','\u{1F3AF}'],
              mentionsOpen: false,
              mentionQuery: '',
              mentionUsers: [],
@@ -207,7 +207,7 @@
         <div class="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs" style="border-color: var(--color-border); background: var(--color-primary-50);">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: var(--color-accent-600);"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
             <span style="color: var(--color-primary-700);">{{ $attachment->getClientOriginalName() }}</span>
-            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">✕</button>
+            <button wire:click="$set('attachment', null)" class="ml-auto font-bold" style="color: var(--color-primary-400);">&times;</button>
         </div>
         @endif
 
@@ -232,7 +232,7 @@
                 wire:model="body"
                 wire:keydown.enter.prevent="send"
                 wire:keydown.debounce.500ms="broadcastTyping"
-                placeholder="Message…  •  Use @username to mention"
+                placeholder="Message - Use @username to mention"
                 rows="1"
                 class="flex-1 resize-none outline-none text-sm bg-transparent"
                 style="color: var(--color-primary-900);"

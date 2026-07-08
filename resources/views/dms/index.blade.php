@@ -46,7 +46,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-base" style="color: var(--color-text-primary);">New Direct Message</h3>
                 <button onclick="document.getElementById('new-dm-modal').classList.add('hidden')"
-                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">✕</button>
+                        style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.25rem; line-height: 1;">&times;</button>
             </div>
             <p class="text-sm mb-4" style="color: var(--color-text-secondary);">Search for a team member to start a conversation.</p>
 
