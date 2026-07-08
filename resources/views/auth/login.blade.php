@@ -12,12 +12,12 @@
 
         {{-- Email --}}
         <div class="form-group">
-            <label for="email" class="form-label">Email Address</label>
+            <label for="email" class="form-label">Email Address or Username</label>
             <input id="email"
-                   type="email"
+                   type="text"
                    name="email"
                    value="{{ old('email') }}"
-                   placeholder="you@company.com"
+                   placeholder="you@company.com or username"
                    class="form-input"
                    required autofocus autocomplete="username">
             @error('email')

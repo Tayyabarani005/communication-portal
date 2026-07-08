@@ -280,6 +280,10 @@ class ChatWindow extends Component
 
     public function checkTyping(): void
     {
+        if (config('cache.default') === 'database') {
+            return;
+        }
+
         $userId = auth()->user()->user_id;
         $workspaceId = $this->channel->workspace_id;
         $members = Cache::remember(
@@ -319,6 +323,7 @@ class ChatWindow extends Component
         $this->checkTyping();
     }
 
+    #[On('echo-private:channel.{channel.channel_id},MessageSent')]
     public function onMessageSent(array $data): void
     {
         $this->messages[] = $data;
@@ -327,6 +332,7 @@ class ChatWindow extends Component
         $this->dispatch('scroll-to-bottom');
     }
 
+    #[On('echo-private:channel.{channel.channel_id},UserTyping')]
     public function onUserTyping(array $data): void
     {
         if ((int) $data['user_id'] !== auth()->user()->user_id) {

@@ -6,10 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Channel;
 use App\Models\DmConversation;
+use App\Models\DirectMessage;
+use App\Models\DmParticipant;
 use App\Models\File;
+use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -38,11 +40,11 @@ class FileController extends Controller
         if ($request->attachable_type === 'channel') {
             $channel = Channel::findOrFail($request->attachable_id);
             $this->authorize('sendMessage', $channel);
-            $attachable = \App\Models\Message::findOrFail($request->message_id ?? 0);
+            $attachable = Message::findOrFail($request->message_id ?? 0);
         } else {
             $conversation = DmConversation::findOrFail($request->attachable_id);
-            $this->authorize('view', $conversation);
-            $attachable = \App\Models\DirectMessage::findOrFail($request->message_id ?? 0);
+            $this->authorizeDirectMessageConversation($conversation);
+            $attachable = DirectMessage::findOrFail($request->message_id ?? 0);
         }
 
         $file = $request->file('file');
@@ -71,20 +73,25 @@ class FileController extends Controller
         $attachable = $file->attachable;
 
         // Authorize based on parent model type
-        if ($attachable instanceof \App\Models\Message) {
+        if ($attachable instanceof Message) {
             $this->authorize('view', $attachable->channel);
-        } elseif ($attachable instanceof \App\Models\DirectMessage) {
-            $this->authorize('view', $attachable->conversation);
-        }
-
-        if (!Storage::disk('public')->exists($file->file_path)) {
+        } elseif ($attachable instanceof DirectMessage) {
+            $this->authorizeDirectMessageConversation($attachable->conversation);
+        } else {
             abort(404, 'File not found.');
         }
 
-        $disk = Storage::disk('public');
+        $storedFile = $this->resolveStoredFile($file->file_path);
 
-        return response()->streamDownload(function () use ($disk, $file): void {
-            $stream = $disk->readStream($file->file_path);
+        if ($storedFile === null) {
+            abort(404, 'File not found.');
+        }
+
+        [$diskName, $path] = $storedFile;
+        $disk = Storage::disk($diskName);
+
+        return response()->streamDownload(function () use ($disk, $path): void {
+            $stream = $disk->readStream($path);
 
             if ($stream === false) {
                 return;
@@ -99,5 +106,57 @@ class FileController extends Controller
             'Content-Type' => $file->mime_type ?: 'application/octet-stream',
             'Content-Length' => $file->file_size ? (string) $file->file_size : null,
         ]));
+    }
+
+    private function authorizeDirectMessageConversation(DmConversation $conversation): void
+    {
+        $isParticipant = DmParticipant::where('conversation_id', $conversation->conversation_id)
+            ->where('user_id', auth()->user()->user_id)
+            ->exists();
+
+        abort_unless($isParticipant, 403);
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function resolveStoredFile(?string $filePath): ?array
+    {
+        if (!$filePath) {
+            return null;
+        }
+
+        $normalizedPath = str_replace('\\', '/', ltrim($filePath, '/'));
+        $candidates = [
+            ['public', $normalizedPath],
+        ];
+
+        $urlPath = parse_url($filePath, PHP_URL_PATH);
+        if (is_string($urlPath)) {
+            $normalizedUrlPath = ltrim(str_replace('\\', '/', $urlPath), '/');
+            $candidates[] = ['public', $normalizedUrlPath];
+
+            if (Str::contains($normalizedUrlPath, 'storage/')) {
+                $candidates[] = ['public', Str::after($normalizedUrlPath, 'storage/')];
+            }
+        }
+
+        if (Str::startsWith($normalizedPath, 'storage/')) {
+            $candidates[] = ['public', Str::after($normalizedPath, 'storage/')];
+        }
+
+        if (Str::startsWith($normalizedPath, 'public/')) {
+            $candidates[] = ['public', Str::after($normalizedPath, 'public/')];
+        }
+
+        $candidates[] = ['local', $normalizedPath];
+
+        foreach ($candidates as [$diskName, $path]) {
+            if ($path !== '' && Storage::disk($diskName)->exists($path)) {
+                return [$diskName, $path];
+            }
+        }
+
+        return null;
     }
 }

@@ -52,12 +52,12 @@ class ChannelPolicy
      */
     public function update(User $user, Channel $channel): bool
     {
-        // Must be a workspace admin
-        $role = WorkspaceMember::where('workspace_id', $channel->workspace_id)
+        // Must be a workspace admin — use first() so enum casting is applied correctly
+        $member = WorkspaceMember::where('workspace_id', $channel->workspace_id)
             ->where('user_id', $user->user_id)
-            ->value('role');
+            ->first();
 
-        return $role === WorkspaceRole::ADMIN->value;
+        return $member !== null && $member->isAdmin();
     }
 
     public function delete(User $user, Channel $channel): bool

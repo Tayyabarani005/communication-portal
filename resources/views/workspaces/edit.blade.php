@@ -3,9 +3,18 @@
 
     <div class="flex-1 flex items-center justify-center p-6" style="background: var(--color-bg-main);">
         <div class="w-full max-w-md rounded-2xl shadow-xl p-8" style="background: white;">
-            <div class="mb-6">
-                <h1 class="text-xl font-bold" style="color: var(--color-primary-900);">Edit your space</h1>
-                <p class="text-sm mt-1" style="color: var(--color-primary-500);">Modify your workspace settings and details below.</p>
+            <div class="mb-6 flex items-center justify-between">
+                <div>
+                    <h1 class="text-xl font-bold" style="color: var(--color-primary-900);">Edit your space</h1>
+                    <p class="text-sm mt-1" style="color: var(--color-primary-500);">Modify your workspace settings and details below.</p>
+                </div>
+                <form method="POST" action="{{ route('workspaces.destroy', $workspace) }}" onsubmit="return confirm('Are you sure you want to delete this workspace? All channels, messages, and tasks will be permanently deleted. This cannot be undone.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition-colors" style="color: #dc2626;">
+                        Delete Workspace
+                    </button>
+                </form>
             </div>
 
             <form method="POST" action="{{ route('workspaces.update', $workspace) }}" enctype="multipart/form-data">

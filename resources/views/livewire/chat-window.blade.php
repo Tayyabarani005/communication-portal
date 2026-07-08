@@ -91,7 +91,7 @@
                 @if(!empty($msg['files']) && count($msg['files']) > 0)
                 <div class="mt-1 space-y-1">
                     @foreach($msg['files'] as $file)
-                    <a href="{{ route('files.download', $file['file_id']) }}" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs border transition-colors hover:bg-gray-50" style="border-color: var(--color-border); color: var(--color-accent-600);">
+                    <a href="{{ route('files.download', $file['file_id']) }}" download class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs border transition-colors hover:bg-gray-50" style="border-color: var(--color-border); color: var(--color-accent-600);">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
                         {{ $file['file_name'] }}
                     </a>

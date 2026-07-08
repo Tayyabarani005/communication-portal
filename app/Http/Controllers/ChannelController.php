@@ -16,7 +16,7 @@ class ChannelController extends Controller
 {
     public function create(Workspace $workspace): View
     {
-        $this->authorize('update', $workspace);
+        $this->authorize('view', $workspace);
 
         // Load workspace members so we can select who to add to private channels
         $members = $workspace->workspaceMembers()
@@ -29,7 +29,7 @@ class ChannelController extends Controller
 
     public function store(Request $request, Workspace $workspace): RedirectResponse
     {
-        $this->authorize('update', $workspace);
+        $this->authorize('view', $workspace);
 
         $validated = $request->validate([
             'channel_name' => ['required', 'string', 'max:100'],
@@ -85,13 +85,29 @@ class ChannelController extends Controller
         // Auto-join the authenticated user to public channels so they can send messages.
         // Private channels require an explicit invite via the create flow.
         if (!$channel->is_private) {
-            ChannelUser::firstOrCreate(
+            $joined = ChannelUser::firstOrCreate(
                 [
                     'channel_id' => $channel->channel_id,
                     'user_id'    => auth()->user()->user_id,
                 ],
                 ['joined_at' => now()]
             );
+
+            // Seed channel read state to avoid marking all historical messages as unread
+            if ($joined->wasRecentlyCreated) {
+                $latestMsgId = \App\Models\Message::where('channel_id', $channel->channel_id)
+                    ->latest('message_id')
+                    ->value('message_id');
+                if ($latestMsgId) {
+                    \App\Models\ChannelReadState::firstOrCreate([
+                        'channel_id' => $channel->channel_id,
+                        'user_id'    => auth()->user()->user_id,
+                    ], [
+                        'last_read_message_id' => $latestMsgId,
+                        'last_read_at' => now(),
+                    ]);
+                }
+            }
         }
 
         return view('channels.show', compact('channel'));

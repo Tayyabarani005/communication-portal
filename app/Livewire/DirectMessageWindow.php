@@ -96,6 +96,8 @@ class DirectMessageWindow extends Component
         $readState->last_read_message_id = (int) $lastMessageId;
         $readState->last_read_at = now();
         $readState->save();
+
+        \Illuminate\Support\Facades\Cache::forget('user-unread-dms-' . auth()->user()->user_id);
     }
 
     public function send(): void
@@ -156,6 +158,14 @@ class DirectMessageWindow extends Component
         $this->body = '';
         $this->parentId = null;
         $this->replyPreview = '';
+
+        // Clear recipient's unread DM count cache so they see badge updates immediately
+        $otherParticipant = $this->conversation->dmParticipants
+            ->firstWhere('user_id', '!=', $user->user_id);
+        if ($otherParticipant) {
+            \Illuminate\Support\Facades\Cache::forget('user-unread-dms-' . $otherParticipant->user_id);
+        }
+
         $this->markRead();
         $this->dispatch('message-sent');
     }
@@ -248,6 +258,10 @@ class DirectMessageWindow extends Component
 
     public function checkTyping(): void
     {
+        if (config('cache.default') === 'database') {
+            return;
+        }
+
         $userId = auth()->user()->user_id;
         $conversationId = $this->conversation->conversation_id;
         $participants = Cache::remember(

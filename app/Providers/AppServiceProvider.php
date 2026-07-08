@@ -48,49 +48,56 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $userId = $user->user_id;
-            $layoutWorkspaces = $user->workspaces()
-                ->select('workspace.workspace_id', 'workspace.name')
-                ->get();
+            $layoutWorkspaces = \Illuminate\Support\Facades\Cache::remember("user-workspaces-{$userId}", 5, function () use ($user) {
+                return $user->workspaces()
+                    ->select('workspace.workspace_id', 'workspace.name')
+                    ->get();
+            });
 
-            $layoutTotalUnreadDms = DirectMessage::query()
-                ->join('dm_participant as dp', 'direct_message.conversation_id', '=', 'dp.conversation_id')
-                ->leftJoin('dm_read_state as drs', function ($join) use ($userId): void {
-                    $join->on('direct_message.conversation_id', '=', 'drs.conversation_id')
-                        ->where('drs.user_id', '=', $userId);
-                })
-                ->where('dp.user_id', $userId)
-                ->where(function ($query): void {
-                    $query->whereNull('drs.last_read_message_id')
-                        ->orWhereColumn('direct_message.dm_message_id', '>', 'drs.last_read_message_id');
-                })
-                ->distinct('direct_message.dm_message_id')
-                ->count('direct_message.dm_message_id');
+            $layoutTotalUnreadDms = \Illuminate\Support\Facades\Cache::remember("user-unread-dms-{$userId}", 5, function () use ($userId) {
+                return DirectMessage::query()
+                    ->join('dm_participant as dp', 'direct_message.conversation_id', '=', 'dp.conversation_id')
+                    ->leftJoin('dm_read_state as drs', function ($join) use ($userId): void {
+                        $join->on('direct_message.conversation_id', '=', 'drs.conversation_id')
+                            ->where('drs.user_id', '=', $userId);
+                    })
+                    ->where('dp.user_id', $userId)
+                    ->where(function ($query): void {
+                        $query->whereNull('drs.last_read_message_id')
+                            ->orWhereColumn('direct_message.dm_message_id', '>', 'drs.last_read_message_id');
+                    })
+                    ->count('direct_message.dm_message_id');
+            });
 
-            $layoutNotifCount = Notification::where('user_id', $userId)
-                ->where('is_seen', false)
-                ->count();
+            $layoutNotifCount = \Illuminate\Support\Facades\Cache::remember("user-notif-count-{$userId}", 5, function () use ($userId) {
+                return Notification::where('user_id', $userId)
+                    ->where('is_seen', false)
+                    ->count();
+            });
 
-            $layoutUserNotifications = Notification::query()
-                ->leftJoin('users as sender', 'notifications.sender_id', '=', 'sender.user_id')
-                ->leftJoin('workspace as notif_workspace', 'notifications.workspace_id', '=', 'notif_workspace.workspace_id')
-                ->where('notifications.user_id', $userId)
-                ->select([
-                    'notifications.id',
-                    'notifications.user_id',
-                    'notifications.sender_id',
-                    'notifications.type',
-                    'notifications.workspace_id',
-                    'notifications.channel_id',
-                    'notifications.message_id',
-                    'notifications.text',
-                    'notifications.is_seen',
-                    'notifications.created_at',
-                    'sender.username as sender_username',
-                    'notif_workspace.name as workspace_name',
-                ])
-                ->latest('notifications.created_at')
-                ->limit(15)
-                ->get();
+            $layoutUserNotifications = \Illuminate\Support\Facades\Cache::remember("user-notifs-{$userId}", 5, function () use ($userId) {
+                return Notification::query()
+                    ->leftJoin('users as sender', 'notifications.sender_id', '=', 'sender.user_id')
+                    ->leftJoin('workspace as notif_workspace', 'notifications.workspace_id', '=', 'notif_workspace.workspace_id')
+                    ->where('notifications.user_id', $userId)
+                    ->select([
+                        'notifications.id',
+                        'notifications.user_id',
+                        'notifications.sender_id',
+                        'notifications.type',
+                        'notifications.workspace_id',
+                        'notifications.channel_id',
+                        'notifications.message_id',
+                        'notifications.text',
+                        'notifications.is_seen',
+                        'notifications.created_at',
+                        'sender.username as sender_username',
+                        'notif_workspace.name as workspace_name',
+                    ])
+                    ->latest('notifications.created_at')
+                    ->limit(15)
+                    ->get();
+            });
 
             $joinRequestPairs = $layoutUserNotifications
                 ->where('type', 'join_request')
