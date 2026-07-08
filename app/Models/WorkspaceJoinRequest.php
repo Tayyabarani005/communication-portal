@@ -31,4 +31,15 @@ class WorkspaceJoinRequest extends Model
     {
         return $this->status === 'pending';
     }
+
+    protected static function booted(): void
+    {
+        static::saved(function (WorkspaceJoinRequest $request) {
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $request->user_id);
+        });
+
+        static::deleted(function (WorkspaceJoinRequest $request) {
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $request->user_id);
+        });
+    }
 }

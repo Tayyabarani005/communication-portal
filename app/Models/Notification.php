@@ -28,6 +28,7 @@ class Notification extends Model
         static::created(function (Notification $notification) {
             \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $notification->user_id);
             \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $notification->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $notification->user_id);
 
             app()->terminating(function () use ($notification): void {
                 try {
@@ -45,11 +46,13 @@ class Notification extends Model
         static::updated(function (Notification $notification) {
             \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $notification->user_id);
             \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $notification->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $notification->user_id);
         });
 
         static::deleted(function (Notification $notification) {
             \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $notification->user_id);
             \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $notification->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $notification->user_id);
         });
     }
 

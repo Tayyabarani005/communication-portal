@@ -31,21 +31,26 @@ class ChannelSidebar extends Component
     public function loadChannels(): void
     {
         $userId = auth()->user()->user_id;
+        $workspaceId = $this->workspace->workspace_id;
 
         // Fetch all public channels + private channels the user is a member of
-        $channels = Channel::query()
-            ->where('workspace_id', $this->workspace->workspace_id)
-            ->where(function ($query) use ($userId): void {
-                $query->where('is_private', false)
-                    ->orWhereExists(function ($q) use ($userId): void {
-                        $q->select(\DB::raw(1))
-                            ->from('channel_user')
-                            ->whereColumn('channel_user.channel_id', 'channel.channel_id')
-                            ->where('channel_user.user_id', $userId);
-                    });
-            })
-            ->select('channel_id', 'workspace_id', 'channel_name', 'is_private')
-            ->get();
+        $channels = \Illuminate\Support\Facades\Cache::remember(
+            "user-workspace-channels-{$userId}-{$workspaceId}",
+            120,
+            fn () => Channel::query()
+                ->where('workspace_id', $workspaceId)
+                ->where(function ($query) use ($userId): void {
+                    $query->where('is_private', false)
+                        ->orWhereExists(function ($q) use ($userId): void {
+                            $q->select(\DB::raw(1))
+                                ->from('channel_user')
+                                ->whereColumn('channel_user.channel_id', 'channel.channel_id')
+                                ->where('channel_user.user_id', $userId);
+                        });
+                })
+                ->select('channel_id', 'workspace_id', 'channel_name', 'is_private')
+                ->get()
+        );
 
         $channelIds = $channels->pluck('channel_id');
 

@@ -29,4 +29,17 @@ class DmParticipant extends Model
     {
         return $this->belongsTo(User::class, 'user_id', 'user_id');
     }
+
+    protected static function booted(): void
+    {
+        static::created(function (DmParticipant $participant) {
+            \Illuminate\Support\Facades\Cache::forget('user-conversations-' . $participant->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $participant->user_id);
+        });
+
+        static::deleted(function (DmParticipant $participant) {
+            \Illuminate\Support\Facades\Cache::forget('user-conversations-' . $participant->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $participant->user_id);
+        });
+    }
 }

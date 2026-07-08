@@ -23,6 +23,30 @@ class Channel extends Model
         'is_private',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (Channel $channel) {
+            $userIds = WorkspaceMember::where('workspace_id', $channel->workspace_id)->pluck('user_id');
+            foreach ($userIds as $uId) {
+                \Illuminate\Support\Facades\Cache::forget("user-workspace-channels-{$uId}-{$channel->workspace_id}");
+            }
+        });
+
+        static::updated(function (Channel $channel) {
+            $userIds = WorkspaceMember::where('workspace_id', $channel->workspace_id)->pluck('user_id');
+            foreach ($userIds as $uId) {
+                \Illuminate\Support\Facades\Cache::forget("user-workspace-channels-{$uId}-{$channel->workspace_id}");
+            }
+        });
+
+        static::deleted(function (Channel $channel) {
+            $userIds = WorkspaceMember::where('workspace_id', $channel->workspace_id)->pluck('user_id');
+            foreach ($userIds as $uId) {
+                \Illuminate\Support\Facades\Cache::forget("user-workspace-channels-{$uId}-{$channel->workspace_id}");
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [

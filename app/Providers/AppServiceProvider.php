@@ -48,14 +48,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $userId = $user->user_id;
-            $layoutWorkspaces = \Illuminate\Support\Facades\Cache::remember("user-workspaces-{$userId}", 5, function () use ($user) {
-                return $user->workspaces()
+
+            $cachedData = \Illuminate\Support\Facades\Cache::remember("layout-data-{$userId}", now()->addDay(), function () use ($user, $userId) {
+                $layoutWorkspaces = $user->workspaces()
                     ->select('workspace.workspace_id', 'workspace.name')
                     ->get();
-            });
 
-            $layoutTotalUnreadDms = \Illuminate\Support\Facades\Cache::remember("user-unread-dms-{$userId}", 5, function () use ($userId) {
-                return DirectMessage::query()
+                $layoutTotalUnreadDms = DirectMessage::query()
                     ->join('dm_participant as dp', 'direct_message.conversation_id', '=', 'dp.conversation_id')
                     ->leftJoin('dm_read_state as drs', function ($join) use ($userId): void {
                         $join->on('direct_message.conversation_id', '=', 'drs.conversation_id')
@@ -67,16 +66,12 @@ class AppServiceProvider extends ServiceProvider
                             ->orWhereColumn('direct_message.dm_message_id', '>', 'drs.last_read_message_id');
                     })
                     ->count('direct_message.dm_message_id');
-            });
 
-            $layoutNotifCount = \Illuminate\Support\Facades\Cache::remember("user-notif-count-{$userId}", 5, function () use ($userId) {
-                return Notification::where('user_id', $userId)
+                $layoutNotifCount = Notification::where('user_id', $userId)
                     ->where('is_seen', false)
                     ->count();
-            });
 
-            $layoutUserNotifications = \Illuminate\Support\Facades\Cache::remember("user-notifs-{$userId}", 5, function () use ($userId) {
-                return Notification::query()
+                $layoutUserNotifications = Notification::query()
                     ->leftJoin('users as sender', 'notifications.sender_id', '=', 'sender.user_id')
                     ->leftJoin('workspace as notif_workspace', 'notifications.workspace_id', '=', 'notif_workspace.workspace_id')
                     ->where('notifications.user_id', $userId)
@@ -97,46 +92,48 @@ class AppServiceProvider extends ServiceProvider
                     ->latest('notifications.created_at')
                     ->limit(15)
                     ->get();
+
+                $joinRequestPairs = $layoutUserNotifications
+                    ->where('type', 'join_request')
+                    ->filter(fn (Notification $notification) => $notification->workspace_id && $notification->sender_id);
+
+                $layoutJoinRequests = collect();
+                if ($joinRequestPairs->isNotEmpty()) {
+                    $joinWorkspaceIds = $joinRequestPairs->pluck('workspace_id')->unique();
+                    $joinSenderIds = $joinRequestPairs->pluck('sender_id')->unique();
+
+                    $layoutJoinRequests = WorkspaceJoinRequest::where('status', 'pending')
+                        ->whereIn('workspace_id', $joinWorkspaceIds)
+                        ->whereIn('user_id', $joinSenderIds)
+                        ->get()
+                        ->keyBy(fn (WorkspaceJoinRequest $request): string => $request->workspace_id . ':' . $request->user_id);
+                }
+
+                $inviteWorkspaceIds = $layoutUserNotifications
+                    ->where('type', 'workspace_invite')
+                    ->pluck('workspace_id')
+                    ->filter()
+                    ->unique();
+
+                $layoutInviteRequests = $inviteWorkspaceIds->isEmpty()
+                    ? collect()
+                    : WorkspaceJoinRequest::where('user_id', $userId)
+                        ->where('status', 'pending')
+                        ->whereIn('workspace_id', $inviteWorkspaceIds)
+                        ->get()
+                        ->keyBy('workspace_id');
+
+                return [
+                    'layoutWorkspaces' => $layoutWorkspaces,
+                    'layoutTotalUnreadDms' => $layoutTotalUnreadDms,
+                    'layoutNotifCount' => $layoutNotifCount,
+                    'layoutUserNotifications' => $layoutUserNotifications,
+                    'layoutJoinRequests' => $layoutJoinRequests,
+                    'layoutInviteRequests' => $layoutInviteRequests,
+                ];
             });
 
-            $joinRequestPairs = $layoutUserNotifications
-                ->where('type', 'join_request')
-                ->filter(fn (Notification $notification) => $notification->workspace_id && $notification->sender_id);
-
-            $layoutJoinRequests = collect();
-            if ($joinRequestPairs->isNotEmpty()) {
-                $joinWorkspaceIds = $joinRequestPairs->pluck('workspace_id')->unique();
-                $joinSenderIds = $joinRequestPairs->pluck('sender_id')->unique();
-
-                $layoutJoinRequests = WorkspaceJoinRequest::where('status', 'pending')
-                    ->whereIn('workspace_id', $joinWorkspaceIds)
-                    ->whereIn('user_id', $joinSenderIds)
-                    ->get()
-                    ->keyBy(fn (WorkspaceJoinRequest $request): string => $request->workspace_id . ':' . $request->user_id);
-            }
-
-            $inviteWorkspaceIds = $layoutUserNotifications
-                ->where('type', 'workspace_invite')
-                ->pluck('workspace_id')
-                ->filter()
-                ->unique();
-
-            $layoutInviteRequests = $inviteWorkspaceIds->isEmpty()
-                ? collect()
-                : WorkspaceJoinRequest::where('user_id', $userId)
-                    ->where('status', 'pending')
-                    ->whereIn('workspace_id', $inviteWorkspaceIds)
-                    ->get()
-                    ->keyBy('workspace_id');
-
-            $view->with(compact(
-                'layoutWorkspaces',
-                'layoutTotalUnreadDms',
-                'layoutNotifCount',
-                'layoutUserNotifications',
-                'layoutJoinRequests',
-                'layoutInviteRequests',
-            ));
+            $view->with($cachedData);
         });
     }
 }

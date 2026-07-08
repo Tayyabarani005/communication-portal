@@ -27,16 +27,18 @@ class DmSidebar extends Component
     {
         $userId = auth()->user()->user_id;
 
-        $conversations = DmConversation::query()
-            ->join('dm_participant as current_participant', 'dm_conversation.conversation_id', '=', 'current_participant.conversation_id')
-            ->where('current_participant.user_id', $userId)
-            ->select('dm_conversation.*')
-            ->distinct()
-            ->with([
-                'dmParticipants:dm_participant_id,conversation_id,user_id',
-                'dmParticipants.user:user_id,username,avatar_url',
-            ])
-            ->get();
+        $conversations = Cache::remember("user-conversations-{$userId}", now()->addDay(), function () use ($userId) {
+            return DmConversation::query()
+                ->join('dm_participant as current_participant', 'dm_conversation.conversation_id', '=', 'current_participant.conversation_id')
+                ->where('current_participant.user_id', $userId)
+                ->select('dm_conversation.*')
+                ->distinct()
+                ->with([
+                    'dmParticipants:dm_participant_id,conversation_id,user_id',
+                    'dmParticipants.user:user_id,username,avatar_url',
+                ])
+                ->get();
+        });
 
         $conversationIds = $conversations->pluck('conversation_id');
         $otherUserIds = $conversations

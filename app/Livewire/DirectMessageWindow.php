@@ -98,6 +98,7 @@ class DirectMessageWindow extends Component
         $readState->save();
 
         \Illuminate\Support\Facades\Cache::forget('user-unread-dms-' . auth()->user()->user_id);
+        \Illuminate\Support\Facades\Cache::forget('layout-data-' . auth()->user()->user_id);
     }
 
     public function send(): void
@@ -164,6 +165,7 @@ class DirectMessageWindow extends Component
             ->firstWhere('user_id', '!=', $user->user_id);
         if ($otherParticipant) {
             \Illuminate\Support\Facades\Cache::forget('user-unread-dms-' . $otherParticipant->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $otherParticipant->user_id);
         }
 
         $this->markRead();
@@ -197,6 +199,10 @@ class DirectMessageWindow extends Component
 
                 $notification->saveQuietly();
                 $notification->setRelation('sender', $authUser);
+
+                \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $user->user_id);
+                \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $user->user_id);
+                \Illuminate\Support\Facades\Cache::forget('layout-data-' . $user->user_id);
 
                 return $notification;
             })

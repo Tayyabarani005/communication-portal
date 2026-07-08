@@ -31,4 +31,27 @@ class PinnedMessage extends Model
     {
         return $this->belongsTo(User::class, 'pinned_by', 'user_id');
     }
+
+    protected static function booted(): void
+    {
+        static::created(function (PinnedMessage $pin) {
+            if ($pin->pinnable_type === Message::class) {
+                $channelId = $pin->pinnable?->channel_id;
+                if ($channelId) {
+                    \Illuminate\Support\Facades\Cache::forget("channel-pin-count-{$channelId}");
+                    \Illuminate\Support\Facades\Cache::forget("channel-pins-{$channelId}");
+                }
+            }
+        });
+
+        static::deleting(function (PinnedMessage $pin) {
+            if ($pin->pinnable_type === Message::class) {
+                $channelId = $pin->pinnable?->channel_id;
+                if ($channelId) {
+                    \Illuminate\Support\Facades\Cache::forget("channel-pin-count-{$channelId}");
+                    \Illuminate\Support\Facades\Cache::forget("channel-pins-{$channelId}");
+                }
+            }
+        });
+    }
 }

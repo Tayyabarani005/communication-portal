@@ -199,6 +199,10 @@ class ChatWindow extends Component
                 $notification->saveQuietly();
                 $notification->setRelation('sender', $authUser);
 
+                \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $user->user_id);
+                \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $user->user_id);
+                \Illuminate\Support\Facades\Cache::forget('layout-data-' . $user->user_id);
+
                 return $notification;
             })
             ->all();

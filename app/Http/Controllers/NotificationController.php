@@ -45,9 +45,15 @@ class NotificationController extends Controller
      */
     public function markAllSeen(Request $request): JsonResponse
     {
-        Notification::where('user_id', $request->user()->user_id)
+        $userId = $request->user()->user_id;
+
+        Notification::where('user_id', $userId)
             ->where('is_seen', false)
             ->update(['is_seen' => true]);
+
+        \Illuminate\Support\Facades\Cache::forget('user-notif-count-' . $userId);
+        \Illuminate\Support\Facades\Cache::forget('user-notifs-' . $userId);
+        \Illuminate\Support\Facades\Cache::forget('layout-data-' . $userId);
 
         return response()->json(['ok' => true]);
     }

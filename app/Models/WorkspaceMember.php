@@ -41,6 +41,21 @@ class WorkspaceMember extends Model
         return $this->belongsTo(Workspace::class, 'workspace_id', 'workspace_id');
     }
 
+    protected static function booted(): void
+    {
+        static::created(function (WorkspaceMember $member) {
+            \Illuminate\Support\Facades\Cache::forget('user-workspaces-' . $member->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $member->user_id);
+            \Illuminate\Support\Facades\Cache::forget("workspace-member-ids-{$member->workspace_id}");
+        });
+
+        static::deleted(function (WorkspaceMember $member) {
+            \Illuminate\Support\Facades\Cache::forget('user-workspaces-' . $member->user_id);
+            \Illuminate\Support\Facades\Cache::forget('layout-data-' . $member->user_id);
+            \Illuminate\Support\Facades\Cache::forget("workspace-member-ids-{$member->workspace_id}");
+        });
+    }
+
     /**
      * Helper to check admin role.
      */

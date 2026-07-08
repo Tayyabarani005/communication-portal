@@ -37,4 +37,21 @@ class ChannelUser extends Model
     {
         return $this->belongsTo(User::class, 'user_id', 'user_id');
     }
+
+    protected static function booted(): void
+    {
+        static::created(function (ChannelUser $channelUser) {
+            $workspaceId = $channelUser->channel?->workspace_id;
+            if ($workspaceId) {
+                \Illuminate\Support\Facades\Cache::forget("user-workspace-channels-{$channelUser->user_id}-{$workspaceId}");
+            }
+        });
+
+        static::deleted(function (ChannelUser $channelUser) {
+            $workspaceId = $channelUser->channel?->workspace_id;
+            if ($workspaceId) {
+                \Illuminate\Support\Facades\Cache::forget("user-workspace-channels-{$channelUser->user_id}-{$workspaceId}");
+            }
+        });
+    }
 }
